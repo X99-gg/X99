@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>X99 - 미니게임</title>
+<style>
+:root{--bg:#f3f5f9;--panel:#fff;--panel2:#edf2fa;--text:#202b3c;--muted:#718096;--blue:#3976d7;--blue-dark:#285fb8;--line:#e2e8f0;--soft:#eaf1fc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px max(5vw,18px);border-bottom:1px solid var(--line);position:sticky;top:0;background:#ffffffed;backdrop-filter:blur(10px);z-index:5}
+.logo{font-size:30px;font-weight:900;letter-spacing:-1.8px;color:#1e293b}button,input{font:inherit}button{border:1px solid transparent;border-radius:10px;padding:11px 16px;background:#e9eef6;color:#27364b;font-weight:750;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}button:hover{transform:translateY(-1px);background:#dfe8f5}button.primary{background:var(--blue);color:white}button.primary:hover{background:var(--blue-dark)}button.cyan{background:#e4efff;color:#285fb8;border-color:#d3e2fa}button.cyan:hover{background:#d8e8ff}button.ghost{background:white;border-color:var(--line);color:#526176}
+main{max-width:1160px;margin:auto;padding:28px 18px 70px}.hero{padding:42px 34px;border-radius:20px;background:linear-gradient(115deg,#fff 0%,#edf4ff 100%);border:1px solid #e2eaf6;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;right:-48px;bottom:-100px;width:310px;height:230px;border-radius:50%;background:#dce9fb;opacity:.75}.hero h1{font-size:clamp(44px,8vw,72px);margin:0;letter-spacing:-4px;color:#1e293b;position:relative;z-index:1}.hero p{color:#64748b;max-width:560px;line-height:1.7;position:relative;z-index:1}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;position:relative;z-index:1}
+.stats{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 34px}.pill{background:#fff;border:1px solid var(--line);padding:8px 13px;border-radius:9px;color:#64748b;font-size:13px}
+.section-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:30px 0 14px}.section-head h2{margin:0;font-size:24px;letter-spacing:-.6px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:13px}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;text-align:left;min-height:138px;box-shadow:0 2px 8px #26364a08}.card:hover{border-color:#b7cbed;background:#fbfdff}.card .emoji{font-size:27px}.card h3{margin:10px 0 4px;font-size:15px;color:#26364b}.card small{color:var(--muted)}.card:disabled{opacity:.52;cursor:not-allowed;transform:none}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;margin-top:18px;box-shadow:0 3px 12px #26364a08}.hidden{display:none!important}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tabs button.active{background:var(--blue);color:#fff}
+input{width:100%;background:#fff;border:1px solid #d7dfeb;border-radius:9px;color:#253449;padding:13px 14px;outline:none}input:focus{border-color:#6b9be5;box-shadow:0 0 0 3px #3976d71a}label{display:block;color:#65758b;font-size:13px;margin:14px 0 7px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}.code{font-size:30px;font-weight:900;letter-spacing:7px;color:var(--blue);padding:12px 0}.notice{color:var(--muted);font-size:13px;line-height:1.6}.gamebox{background:#f7f9fc;border:1px solid var(--line);border-radius:13px;padding:22px;margin-top:16px;text-align:center}.gamebox h3{font-size:24px}.big{font-size:42px;font-weight:900;margin:12px}.result{min-height:26px;color:#2f6dc4;font-weight:750}.footer{text-align:center;color:#98a3b3;font-size:12px;margin-top:45px}
+@media(max-width:550px){header{padding:14px 16px}.hero{padding:30px 20px}.hero:after{width:190px;height:150px;right:-55px;bottom:-65px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.row{flex-direction:column}}
+.wordchain-word{display:inline-block;background:#fff;border:1px solid #dce4ef;border-radius:8px;padding:9px 12px;margin:4px;font-weight:750;color:#304258}.wordchain-turn{color:#2f6dc4;font-weight:850;font-size:18px}.wordchain-list{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin:14px 0}button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+</style>
+</head>
+<body>
+<header><div class="logo">X99</div><button class="ghost" onclick="showHome()">홈</button></header>
+<main>
+<section id="home">
+ <div class="hero">
+  <h1>X99</h1>
+  <p>가볍게 즐기는 미니게임 모음.<br>혼자 기록에 도전하거나 친구들과 방을 만들어 플레이해 봐.</p>
+  <div class="hero-actions">
+   <button class="primary" onclick="showSolo()">혼자 하기</button>
+   <button class="cyan" onclick="showMulti()">친구와 함께하기</button>
+  </div>
+ </div>
+ <div class="stats"><span class="pill">총 99개 게임</span><span class="pill">혼자 하기 50개</span><span class="pill">친구와 함께하기 49개</span></div>
+ <div class="section-head"><div><h2>오늘의 추천</h2><p>바로 플레이할 수 있는 게임</p></div></div>
+ <div class="grid" id="featured"></div>
+</section>
+<section id="solo" class="hidden">
+ <div class="section-head"><div><h2>혼자 하기</h2><p>혼자서 즐기는 게임 50개</p></div></div>
+ <div class="grid" id="soloGrid"></div>
+ <div id="soloGame" class="panel hidden"></div>
+</section>
+<section id="multi" class="hidden">
+ <div class="section-head"><div><h2>친구와 함께하기</h2><p>방을 만들거나 친구의 방에 참가해 봐.</p></div></div>
+ <div class="panel">
+  <h3>방 만들기</h3><p class="notice">방을 만들면 6자리 방 코드가 생겨. 친구에게 코드를 알려줘!</p>
+  <label>닉네임</label><input id="hostName" maxlength="12" placeholder="내 닉네임">
+  <div style="margin-top:13px"><button id="createRoomButton" class="primary" onclick="createRoom()">방 만들기</button></div>
+  <p class="notice" id="roomStatus" aria-live="polite">Firebase 연결 상태를 확인하고 있어...</p>
+  <div id="createdRoom" class="hidden">
+   <div class="notice">내 방 코드</div><div class="code" id="roomCode"></div>
+   <button class="ghost" onclick="copyCode()">코드 복사</button>
+   <p class="notice">친구에게 6자리 코드를 알려줘.</p>
+  </div>
+ </div>
+ <div class="panel">
+  <h3>방 코드 입력</h3><label>닉네임</label><input id="joinName" maxlength="12" placeholder="내 닉네임">
+  <label>6자리 방 코드</label><input id="joinCode" maxlength="6" inputmode="numeric" placeholder="예: 482193">
+  <div style="margin-top:13px"><button class="cyan" onclick="joinRoom()">방 참가하기</button></div>
+  <div id="joinResult" class="result"></div>
+ </div>
+ <div class="section-head"><div><h2>멀티플레이 게임</h2><p>친구들과 함께하는 게임 49개</p></div></div>
+ <div class="grid" id="multiGrid"></div>
+ <div id="multiGame" class="panel hidden"></div>
+</section>
+<div class="footer">X99 · MINI GAME COLLECTION</div>
+</main>
+<script>
+const soloNames=[
+["🐍","스네이크"],["🧱","벽돌 깨기"],["🔢","숫자 맞히기"],["⚡","반응속도"],["💣","지뢰찾기"],["🃏","카드 뒤집기"],["🧩","블록 퍼즐"],["🌀","미로 탈출"],["🧠","기억력 테스트"],["⏱️","타이밍 게임"],
+["🎯","과녁 맞히기"],["🏓","탁구 연습"],["🚀","우주 피하기"],["🍉","과일 자르기"],["🎈","풍선 터뜨리기"],["🧮","계산왕"],["🔤","단어 찾기"],["🎨","색깔 찾기"],["🪙","동전 모으기"],["🐸","개구리 점프"],
+["🏃","달리기"],["🛸","우주선 조종"],["🧊","얼음 깨기"],["📦","상자 쌓기"],["🪜","계단 오르기"],["🎹","피아노 타일"],["🧲","자석 퍼즐"],["🌟","별 모으기"],["🧵","길 연결하기"],["🪄","마법 숫자"],
+["🍀","행운 룰렛"],["🧊","슬라이드 퍼즐"],["🔍","숨은 그림"],["🧺","바구니 받기"],["🦘","점프 챌린지"],["🚦","신호등 게임"],["🧿","집중력 게임"],["🪁","연 날리기"],["🧼","거품 터뜨리기"],["🛹","스케이트"],
+["🧱","탑 쌓기"],["🐟","물고기 키우기"],["🧭","방향 기억"],["🎲","주사위 운"],["🧸","인형 뽑기"],["🛟","장애물 피하기"],["🔔","소리 기억"],["🧩","퍼즐 맞추기"],["🪂","낙하 조절"],["🏆","최고 기록"]
+];
+const multiNames=[
+["🔤","끝말잇기"],["⚾","숫자 야구"],["❓","초성 퀴즈"],["💨","스피드 퀴즈"],["🖼️","그림 맞히기"],["⭕","OX 퀴즈"],["⌨️","타자 대결"],["✊","가위바위보"],["💭","단어 연상"],["🧠","상식 퀴즈"],
+["🎭","몸으로 말해요"],["🎨","그림 이어그리기"],["🔎","다른 그림 찾기"],["🎵","음악 퀴즈"],["🔢","숫자 순서"],["🧩","협동 퍼즐"],["🏁","레이스 대결"],["🃏","카드 대전"],["🎲","주사위 대결"],["🕵️","정체 맞히기"],
+["🗣️","속담 완성"],["🌍","나라 맞히기"],["🐾","동물 퀴즈"],["🍔","음식 퀴즈"],["📚","책 제목 맞히기"],["🎬","영화 퀴즈"],["⚽","스포츠 퀴즈"],["🧮","계산 대결"],["🔠","단어 조합"],["🧊","순발력 대결"],
+["🧠","기억력 대결"],["🧭","방향 지시"],["🎯","목표 숫자"],["🪙","앞면 뒷면"],["🧵","이야기 이어쓰기"],["🧑‍🎤","캐릭터 맞히기"],["🧩","퍼즐 레이스"],["📣","금지어 게임"],["🕰️","시간 추측"],["🧪","과학 퀴즈"],
+["🌱","초성 단어왕"],["🎤","한 글자 노래"],["🧺","물건 기억"],["🗺️","수도 퀴즈"],["🦖","공룡 퀴즈"],["🧑‍🍳","요리 이름"],["🔐","암호 풀기"],["🧑‍🚀","우주 퀴즈"],["🏅","종합 대결"]
+];
+function card(item,i,type){return `<button class="card" ${type==='solo'?`onclick="openSolo(${i})"`:`onclick="openMulti(${i})"`}><div class="emoji">${item[0]}</div><h3>${String(i+1).padStart(2,'0')}. ${item[1]}</h3><small>${type==='solo'?(i===2||i===3?'바로 플레이 가능':'준비 중'):(i===0?'실시간 플레이 가능':'준비 중')}</small></button>`}
+document.getElementById('soloGrid').innerHTML=soloNames.map((x,i)=>card(x,i,'solo')).join('');
+document.getElementById('multiGrid').innerHTML=multiNames.map((x,i)=>card(x,i,'multi')).join('');
+document.getElementById('featured').innerHTML=[soloNames[2],soloNames[3],multiNames[0],multiNames[1],multiNames[2]].map((x,i)=>card(x,[2,3,0,1,2][i],i<2?'solo':'multi')).join('');
+function hideSections(){['home','solo','multi'].forEach(id=>document.getElementById(id).classList.add('hidden'))}
+function showHome(){hideSections();document.getElementById('home').classList.remove('hidden')}
+function showSolo(){hideSections();document.getElementById('solo').classList.remove('hidden')}
+function showMulti(){hideSections();document.getElementById('multi').classList.remove('hidden')}
+function openSolo(i){
+ const box=document.getElementById('soloGame');box.classList.remove('hidden');
+ if(i===2){box.innerHTML=`<h2>🔢 숫자 맞히기</h2><p>1부터 100 사이의 숫자를 맞혀 봐!</p><input id="guess" type="number" min="1" max="100" placeholder="숫자 입력"><button class="primary" onclick="checkGuess()">확인</button><div class="result" id="guessResult"></div><button class="ghost" onclick="resetGuess()">다시 시작</button>`;resetGuess(false)}
+ else if(i===3){box.innerHTML=`<h2>⚡ 반응속도 테스트</h2><p>초록색으로 바뀌면 최대한 빠르게 눌러!</p><button class="primary" id="reactionBtn" onclick="reactionClick()">시작하기</button><div class="result" id="reactionResult"></div>`;reactionReady=false;reactionStart=0}
+ else{box.innerHTML=`<h2>${soloNames[i][0]} ${soloNames[i][1]}</h2><p>이 게임은 다음 업데이트에서 추가할 예정이야!</p>`}
+ box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+let secret=0,tries=0;function resetGuess(clear=true){secret=Math.floor(Math.random()*100)+1;tries=0;if(clear&&document.getElementById('guessResult'))document.getElementById('guessResult').textContent='새 게임 시작!'}
+function checkGuess(){let v=Number(document.getElementById('guess').value),r=document.getElementById('guessResult');if(!v||v<1||v>100){r.textContent='1~100 사이 숫자를 입력해!';return}tries++;r.textContent=v===secret?`정답! ${tries}번 만에 맞혔어! 🎉`:v<secret?'더 큰 숫자야! ⬆️':'더 작은 숫자야! ⬇️'}
+let reactionReady=false,reactionStart=0,reactionTimer=null;
+function reactionClick(){let b=document.getElementById('reactionBtn'),r=document.getElementById('reactionResult');if(!reactionReady){if(b.dataset.waiting==='yes'){clearTimeout(reactionTimer);b.dataset.waiting='';r.textContent='너무 빨랐어! 다시 시작해 봐.';b.textContent='다시 도전';return}b.dataset.waiting='yes';b.textContent='초록색을 기다려...';r.textContent='';reactionTimer=setTimeout(()=>{reactionReady=true;reactionStart=performance.now();b.style.background='#25b86b';b.textContent='지금 클릭!'},1000+Math.random()*3000)}else{let ms=Math.round(performance.now()-reactionStart);reactionReady=false;b.dataset.waiting='';b.style.background='';b.textContent='다시 도전';r.textContent=`반응속도: ${ms}ms`}}
+let activeRoom=null;
+function copyCode(){
+ const code=document.getElementById('roomCode').textContent.trim();
+ if(!code)return;
+ navigator.clipboard?.writeText(code)
+  .then(()=>alert('방 코드를 복사했어!'))
+  .catch(()=>alert('방 코드: '+code));
+}
+function openMulti(i){
+ const box=document.getElementById('multiGame');
+ box.classList.remove('hidden');
+ if(i===0){
+  box.innerHTML=`<h2>🔤 실시간 끝말잇기</h2>
+   <p>방에 연결한 친구들과 차례대로 단어를 이어 가자!</p>
+   <div class="gamebox"><div id="wordchainLive"><p class="notice">먼저 방을 만들거나 참가해 줘.</p></div></div>
+   <p class="notice">규칙: 두 글자 이상의 한글 단어를 입력해. 앞 단어의 마지막 글자로 시작해야 하고, 이미 나온 단어는 다시 쓸 수 없어. 현재 버전은 사전 자동 검증과 시간 제한은 없어.</p>`;
+  if(window.refreshWordChainUI) window.refreshWordChainUI();
+ }else{
+  box.innerHTML=`<h2>${multiNames[i][0]} ${multiNames[i][1]}</h2><p>이 게임은 다음 업데이트에서 추가할 예정이야!</p><p class="notice">현재 실시간 플레이가 가능한 게임은 끝말잇기야.</p>`;
+ }
+ box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+</script>
+
+<script>
+// Firebase 모듈이 실행되지 않는 미리보기 환경에서도 버튼을 눌렀을 때 안내를 보여 줘.
+window.createRoom = window.createRoom || function () {
+  const status = document.getElementById("roomStatus");
+  if (status) status.textContent = "Firebase 스크립트를 불러오지 못했어. 이 파일은 Firebase 모듈을 지원하는 웹사이트(예: GitHub Pages)에서 실행해야 방을 만들 수 있어.";
+};
+</script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
+import {
+  getFirestore, doc, runTransaction, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBg5MvML28CMW-m60HhRVsoUHCdGHwo9aI",
+  authDomain: "project-844b1.firebaseapp.com",
+  projectId: "project-844b1",
+  storageBucket: "project-844b1.firebasestorage.app",
+  messagingSenderId: "557213057772",
+  appId: "1:557213057772:web:4331624ae7eb65acfd1bc9",
+  measurementId: "G-N1FVNXYWXS"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let currentRoomUnsubscribe = null;
+
+const authReady = signInAnonymously(auth);
+authReady.then(() => {
+  const status = document.getElementById("roomStatus");
+  if (status) status.textContent = "Firebase에 연결됐어. 방을 만들 수 있어.";
+}).catch((error) => {
+  showFirebaseError(error, document.getElementById("roomStatus"));
+});
+
+function makeRoomCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function showFirebaseError(error, target) {
+  console.error(error);
+  const code = error?.code || "";
+  if (code.includes("permission-denied")) {
+    target.textContent = "Firebase 보안 규칙에서 권한이 거부됐어. Firestore 규칙을 확인해 줘.";
+  } else if (code.includes("auth/operation-not-allowed")) {
+    target.textContent = "Firebase에서 익명 로그인이 꺼져 있어. Authentication에서 익명 로그인을 켜 줘.";
+  } else if (code.includes("auth/network-request-failed")) {
+    target.textContent = "인터넷 연결을 확인하고 다시 시도해 줘.";
+  } else {
+    target.textContent = "연결에 실패했어. 인터넷과 Firebase 설정을 확인한 뒤 다시 시도해 줘.";
+  }
+}
+
+
+function x99EscapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+function renderX99WordChain(room) {
+  const target = document.getElementById("wordchainLive");
+  if (!target) return;
+
+  const players = Array.isArray(room.players) ? room.players : [];
+  const game = room.game;
+
+  if (!game || game.type !== "wordchain" || game.status !== "playing") {
+    target.innerHTML = `
+      <p>${players.length}/8명 참가 중</p>
+      <p class="notice">방에 2명 이상 모이면 방장이 게임을 시작할 수 있어.</p>
+      <button class="cyan" onclick="startX99WordChain()">방장이 게임 시작하기</button>`;
+    return;
+  }
+
+  const myUid = auth.currentUser?.uid;
+  const currentPlayer = players.find(p => p.uid === game.currentTurnUid);
+  const myTurn = !!myUid && game.currentTurnUid === myUid;
+  const words = Array.isArray(game.words) ? game.words : [];
+  const scores = game.scores || {};
+  const wordItems = words.length
+    ? words.map((item, index) =>
+        `<span class="wordchain-word">${index + 1}. ${x99EscapeHtml(item.word)} <small>(${x99EscapeHtml(item.playerName)})</small></span>`
+      ).join("")
+    : `<span class="notice">첫 단어를 입력해 줘!</span>`;
+  const scoreItems = players.map(player =>
+    `<span class="pill">${x99EscapeHtml(player.name)}: ${Number(scores[player.uid] || 0)}점</span>`
+  ).join(" ");
+
+  target.innerHTML = `
+    <p class="wordchain-turn">${myTurn ? "🎯 네 차례야!" : `⏳ ${x99EscapeHtml(currentPlayer?.name || "다음 참가자")} 차례야.`}</p>
+    <p>${players.length}명 참가 중</p>
+    <div class="wordchain-list">${wordItems}</div>
+    <p>${scoreItems}</p>
+    <p class="notice">${words.length ? `다음 단어는 “${x99EscapeHtml(words[words.length - 1].word.slice(-1))}”로 시작해야 해.` : "첫 단어는 자유롭게 입력해!"}</p>
+    <div class="row">
+      <input id="x99WordInput" maxlength="12" placeholder="단어 입력" ${myTurn ? "" : "disabled"}>
+      <button class="primary" onclick="submitX99Word()" ${myTurn ? "" : "disabled"}>입력!</button>
+    </div>
+    <div id="x99WordMessage" class="result" aria-live="polite"></div>`;
+}
+
+window.refreshWordChainUI = function () {
+  if (window.__x99LatestRoom) renderX99WordChain(window.__x99LatestRoom);
+};
+
+function watchRoom(roomCode) {
+  if (currentRoomUnsubscribe) currentRoomUnsubscribe();
+  const roomRef = doc(db, "rooms", roomCode);
+  currentRoomUnsubscribe = onSnapshot(roomRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      const status = document.getElementById("roomStatus");
+      if (status) status.textContent = "이 방은 더 이상 존재하지 않아.";
+      return;
+    }
+    const room = snapshot.data();
+    window.__x99LatestRoom = room;
+    const players = Array.isArray(room.players) ? room.players : [];
+    renderX99WordChain(room);
+    const names = players.map(player => player.name).join(", ");
+    const statusText = `${players.length}/8명 참가 중${names ? " · " + names : ""}`;
+    const status = document.getElementById("roomStatus");
+    if (status) status.textContent = statusText;
+    const joinResult = document.getElementById("joinResult");
+    if (joinResult && document.getElementById("joinCode").value.trim() === roomCode) {
+      joinResult.textContent = "실시간 연결 중! " + statusText;
+    }
+  }, (error) => {
+    showFirebaseError(error, document.getElementById("roomStatus"));
+  });
+}
+
+window.createRoom = async function () {
+  const status = document.getElementById("roomStatus");
+  const button = document.getElementById('createRoomButton');
+  const name = (document.getElementById("hostName").value.trim() || "방장").slice(0, 12);
+  if (button) button.disabled = true;
+  if (status) status.textContent = "Firebase에 연결하고 있어...";
+  try {
+    const credential = await authReady;
+    const user = credential.user;
+    let createdCode = null;
+
+    for (let attempt = 0; attempt < 12 && !createdCode; attempt++) {
+      const candidate = makeRoomCode();
+      const roomRef = doc(db, "rooms", candidate);
+      const created = await runTransaction(db, async (transaction) => {
+        const existing = await transaction.get(roomRef);
+        if (existing.exists()) return false;
+        transaction.set(roomRef, {
+          hostUid: user.uid,
+          players: [{ uid: user.uid, name, joinedAt: Date.now() }],
+          status: "waiting",
+          maxPlayers: 8,
+          createdAt: serverTimestamp()
+        });
+        return true;
+      });
+      if (created) createdCode = candidate;
+    }
+
+    if (!createdCode) throw new Error("ROOM_CODE_RETRY");
+    activeRoom = createdCode;
+    document.getElementById("createdRoom").classList.remove("hidden");
+    document.getElementById("roomCode").textContent = createdCode;
+    watchRoom(createdCode);
+  } catch (error) {
+    showFirebaseError(error, status);
+  } finally {
+    if (button) button.disabled = false;
+  }
+};
+
+window.joinRoom = async function () {
+  const code = document.getElementById("joinCode").value.trim();
+  const name = (document.getElementById("joinName").value.trim() || "참가자").slice(0, 12);
+  const output = document.getElementById("joinResult");
+  if (!/^\d{6}$/.test(code)) {
+    output.textContent = "6자리 숫자 코드를 입력해 줘.";
+    return;
+  }
+  output.textContent = "방을 찾고 있어...";
+  try {
+    const credential = await authReady;
+    const user = credential.user;
+    const roomRef = doc(db, "rooms", code);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists()) throw new Error("ROOM_NOT_FOUND");
+      const room = snapshot.data();
+      const players = Array.isArray(room.players) ? room.players : [];
+      if (players.some(player => player.uid === user.uid)) return;
+      if (players.length >= (room.maxPlayers || 8)) throw new Error("ROOM_FULL");
+      transaction.update(roomRef, {
+        players: [...players, { uid: user.uid, name, joinedAt: Date.now() }]
+      });
+    });
+
+    activeRoom = code;
+    output.textContent = "방에 참가했어! 실시간 참가자 정보를 불러오는 중...";
+    watchRoom(code);
+  } catch (error) {
+    if (error.message === "ROOM_NOT_FOUND") {
+      output.textContent = "그 방 코드를 찾을 수 없어. 코드를 다시 확인해 줘.";
+    } else if (error.message === "ROOM_FULL") {
+      output.textContent = "이 방은 이미 8명으로 가득 찼어.";
+    } else {
+      showFirebaseError(error, output);
+    }
+  }
+};
+
+window.startX99WordChain = async function () {
+  try {
+    const credential = await authReady;
+    const uid = credential.user.uid;
+    if (!activeRoom) throw new Error("먼저 방을 만들거나 참가해 줘.");
+    const roomRef = doc(db, "rooms", activeRoom);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists()) throw new Error("방을 찾을 수 없어.");
+      const room = snapshot.data();
+      if (room.hostUid !== uid) throw new Error("방장만 게임을 시작할 수 있어.");
+
+      const players = Array.isArray(room.players) ? room.players : [];
+      if (players.length < 2) throw new Error("친구가 한 명 이상 참가해야 시작할 수 있어!");
+
+      const scores = {};
+      players.forEach(player => { scores[player.uid] = 0; });
+
+      transaction.update(roomRef, {
+        status: "playing",
+        game: {
+          type: "wordchain",
+          status: "playing",
+          words: [],
+          usedWords: [],
+          currentTurnUid: players[0].uid,
+          scores,
+          startedAt: Date.now()
+        }
+      });
+    });
+  } catch (error) {
+    const message = error.message || "게임을 시작하지 못했어.";
+    const output = document.getElementById("x99WordMessage");
+    if (output) output.textContent = message;
+    else alert(message);
+  }
+};
+
+window.submitX99Word = async function () {
+  const input = document.getElementById("x99WordInput");
+  const output = document.getElementById("x99WordMessage");
+  const word = (input?.value || "").trim().replace(/\s+/g, "");
+
+  if (!word) {
+    if (output) output.textContent = "단어를 입력해 줘.";
+    return;
+  }
+  if (!/^[가-힣]{2,12}$/.test(word)) {
+    if (output) output.textContent = "두 글자 이상, 한글 단어를 입력해 줘.";
+    return;
+  }
+
+  try {
+    const credential = await authReady;
+    const uid = credential.user.uid;
+    if (!activeRoom) throw new Error("먼저 방을 만들거나 참가해 줘.");
+    const roomRef = doc(db, "rooms", activeRoom);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists()) throw new Error("방을 찾을 수 없어.");
+
+      const room = snapshot.data();
+      const game = room.game;
+      if (!game || game.type !== "wordchain" || game.status !== "playing") {
+        throw new Error("아직 게임이 시작되지 않았어.");
+      }
+      if (game.currentTurnUid !== uid) throw new Error("아직 네 차례가 아니야.");
+
+      const players = Array.isArray(room.players) ? room.players : [];
+      const playerIndex = players.findIndex(player => player.uid === uid);
+      if (playerIndex < 0) throw new Error("이 방의 참가자가 아니야.");
+
+      const usedWords = Array.isArray(game.usedWords) ? game.usedWords : [];
+      if (usedWords.includes(word)) throw new Error("이미 나온 단어야!");
+
+      const words = Array.isArray(game.words) ? game.words : [];
+      if (words.length > 0) {
+        const lastWord = words[words.length - 1].word;
+        const requiredFirstLetter = lastWord[lastWord.length - 1];
+        if (word[0] !== requiredFirstLetter) {
+          throw new Error(`“${requiredFirstLetter}”로 시작하는 단어를 입력해 줘.`);
+        }
+      }
+
+      const nextWords = [
+        ...words,
+        { word, uid, playerName: players[playerIndex].name, at: Date.now() }
+      ];
+      const nextScores = { ...(game.scores || {}) };
+      nextScores[uid] = (nextScores[uid] || 0) + 1;
+      const nextPlayer = players[(playerIndex + 1) % players.length];
+
+      transaction.update(roomRef, {
+        "game.words": nextWords,
+        "game.usedWords": [...usedWords, word],
+        "game.scores": nextScores,
+        "game.currentTurnUid": nextPlayer.uid
+      });
+    });
+
+    if (input) input.value = "";
+  } catch (error) {
+    if (output) output.textContent = error.message || "단어를 등록하지 못했어.";
+  }
+};
+
+</script>
+
+</body></html>
