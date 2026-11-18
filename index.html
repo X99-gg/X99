@@ -31,7 +31,7 @@ input{width:100%;background:#fff;border:1px solid #d7dfeb;border-radius:9px;colo
    <button class="cyan" onclick="showMulti()">친구와 함께하기</button>
   </div>
  </div>
- <div class="stats"><span class="pill">총 99개 게임</span><span class="pill">혼자 하기 50개</span><span class="pill">친구와 함께하기 49개</span></div>
+ <div class="stats"><span class="pill">총 99개 게임 · 1차 구현</span><span class="pill">혼자 하기 50개</span><span class="pill">친구와 함께하기 49개</span></div>
  <div class="section-head"><div><h2>오늘의 추천</h2><p>바로 플레이할 수 있는 게임</p></div></div>
  <div class="grid" id="featured"></div>
 </section>
@@ -80,7 +80,7 @@ const multiNames=[
 ["🧠","기억력 대결"],["🧭","방향 지시"],["🎯","목표 숫자"],["🪙","앞면 뒷면"],["🧵","이야기 이어쓰기"],["🧑‍🎤","캐릭터 맞히기"],["🧩","퍼즐 레이스"],["📣","금지어 게임"],["🕰️","시간 추측"],["🧪","과학 퀴즈"],
 ["🌱","초성 단어왕"],["🎤","한 글자 노래"],["🧺","물건 기억"],["🗺️","수도 퀴즈"],["🦖","공룡 퀴즈"],["🧑‍🍳","요리 이름"],["🔐","암호 풀기"],["🧑‍🚀","우주 퀴즈"],["🏅","종합 대결"]
 ];
-function card(item,i,type){return `<button class="card" ${type==='solo'?`onclick="openSolo(${i})"`:`onclick="openMulti(${i})"`}><div class="emoji">${item[0]}</div><h3>${String(i+1).padStart(2,'0')}. ${item[1]}</h3><small>${type==='solo'?(i===2||i===3?'바로 플레이 가능':'준비 중'):(i===0?'실시간 플레이 가능':'준비 중')}</small></button>`}
+function card(item,i,type){const ready=type==='solo'?i<10:i===0;return `<button class="card" ${ready?`onclick="${type==='solo'?`openSolo(${i})`:`openMulti(${i})`}"`:"disabled"}><div class="emoji">${item[0]}</div><h3>${String(i+1).padStart(2,'0')}. ${item[1]}</h3><small>${ready?'플레이 가능':'제작 중'}</small></button>`}
 document.getElementById('soloGrid').innerHTML=soloNames.map((x,i)=>card(x,i,'solo')).join('');
 document.getElementById('multiGrid').innerHTML=multiNames.map((x,i)=>card(x,i,'multi')).join('');
 document.getElementById('featured').innerHTML=[soloNames[2],soloNames[3],multiNames[0],multiNames[1],multiNames[2]].map((x,i)=>card(x,[2,3,0,1,2][i],i<2?'solo':'multi')).join('');
@@ -88,17 +88,45 @@ function hideSections(){['home','solo','multi'].forEach(id=>document.getElementB
 function showHome(){hideSections();document.getElementById('home').classList.remove('hidden')}
 function showSolo(){hideSections();document.getElementById('solo').classList.remove('hidden')}
 function showMulti(){hideSections();document.getElementById('multi').classList.remove('hidden')}
+let soloCleanup=null;
+function stopSolo(){if(soloCleanup){soloCleanup();soloCleanup=null;}}
 function openSolo(i){
+ stopSolo();
  const box=document.getElementById('soloGame');box.classList.remove('hidden');
- if(i===2){box.innerHTML=`<h2>🔢 숫자 맞히기</h2><p>1부터 100 사이의 숫자를 맞혀 봐!</p><input id="guess" type="number" min="1" max="100" placeholder="숫자 입력"><button class="primary" onclick="checkGuess()">확인</button><div class="result" id="guessResult"></div><button class="ghost" onclick="resetGuess()">다시 시작</button>`;resetGuess(false)}
- else if(i===3){box.innerHTML=`<h2>⚡ 반응속도 테스트</h2><p>초록색으로 바뀌면 최대한 빠르게 눌러!</p><button class="primary" id="reactionBtn" onclick="reactionClick()">시작하기</button><div class="result" id="reactionResult"></div>`;reactionReady=false;reactionStart=0}
- else{box.innerHTML=`<h2>${soloNames[i][0]} ${soloNames[i][1]}</h2><p>이 게임은 다음 업데이트에서 추가할 예정이야!</p>`}
+ const title=soloNames[i][1];
+ box.innerHTML=`<div class="row" style="align-items:center"><div><h2>${soloNames[i][0]} ${title}</h2><p class="notice" id="soloHelp"></p></div><button class="ghost" onclick="restartSolo()">다시 시작</button></div><div class="gamebox" id="soloStage"></div><div class="result" id="soloResult" aria-live="polite"></div>`;
+ const stage=document.getElementById('soloStage'), help=document.getElementById('soloHelp');
+ window.restartSolo=()=>openSolo(i);
+ const say=t=>{const el=document.getElementById('soloResult');if(el)el.textContent=t;};
+ if(i===0){ // real snake
+  help.textContent='방향키 또는 아래 버튼으로 뱀을 움직여 먹이를 먹어! 벽이나 몸에 닿으면 끝.';
+  stage.innerHTML=`<canvas id="snakeCanvas" width="360" height="360" style="max-width:100%;background:#142a36;border-radius:10px;touch-action:none"></canvas><div class="big" id="snakeScore">0점</div><div class="row" style="max-width:260px;margin:auto"><button onclick="snakeTurn(0,-1)">↑</button><button onclick="snakeTurn(-1,0)">←</button><button onclick="snakeTurn(1,0)">→</button><button onclick="snakeTurn(0,1)">↓</button></div>`;
+  const c=document.getElementById('snakeCanvas'),ctx=c.getContext('2d'),n=18,cell=20;let snake=[{x:8,y:9},{x:7,y:9},{x:6,y:9}],dir={x:1,y:0},next={x:1,y:0},food={x:13,y:9},score=0,dead=false;
+  function spawn(){do{food={x:Math.floor(Math.random()*n),y:Math.floor(Math.random()*n)}}while(snake.some(p=>p.x===food.x&&p.y===food.y))}
+  window.snakeTurn=(x,y)=>{if(x!==-dir.x||y!==-dir.y)next={x,y}};
+  const key=e=>{const m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};if(m[e.key]){e.preventDefault();snakeTurn(...m[e.key])}};
+  window.addEventListener('keydown',key);
+  function draw(){ctx.fillStyle='#142a36';ctx.fillRect(0,0,360,360);ctx.fillStyle='#f5b942';ctx.beginPath();ctx.arc(food.x*cell+10,food.y*cell+10,8,0,7);ctx.fill();snake.forEach((p,j)=>{ctx.fillStyle=j?'#62c99b':'#a3f2c8';ctx.fillRect(p.x*cell+1,p.y*cell+1,18,18)});}
+  const timer=setInterval(()=>{if(dead)return;dir=next;const h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};if(h.x<0||h.y<0||h.x>=n||h.y>=n||snake.some(p=>p.x===h.x&&p.y===h.y)){dead=true;say(`게임 오버! 최종 점수 ${score}점`);return}snake.unshift(h);if(h.x===food.x&&h.y===food.y){score++;document.getElementById('snakeScore').textContent=score+'점';spawn()}else snake.pop();draw()},125);
+  draw();soloCleanup=()=>{clearInterval(timer);window.removeEventListener('keydown',key);delete window.snakeTurn;};
+ }else if(i===1){ // brick breaker
+  help.textContent='마우스·손가락으로 패들을 움직여 공을 튕기고 벽돌을 모두 깨!';
+  stage.innerHTML=`<canvas id="brickCanvas" width="420" height="340" style="max-width:100%;background:#17283d;border-radius:10px;touch-action:none"></canvas><p>패들을 좌우로 움직여!</p>`;
+  const c=document.getElementById('brickCanvas'),ctx=c.getContext('2d');let x=210,y=245,dx=3,dy=-3,pad=75,px=172,score=0,alive=true;const bricks=Array.from({length:5},(_,r)=>Array.from({length:8},(_,col)=>({x:8+col*51,y:24+r*22,on:true})));
+  const move=e=>{const rect=c.getBoundingClientRect();px=Math.max(0,Math.min(420-pad,(e.clientX-rect.left)*420/rect.width-pad/2))};c.addEventListener('pointermove',move);
+  const timer=setInterval(()=>{if(!alive)return;x+=dx;y+=dy;if(x<7||x>413)dx*=-1;if(y<7)dy*=-1;if(y>320&&y<330&&x>px&&x<px+pad)dy=-Math.abs(dy);if(y>345){alive=false;say(`공을 놓쳤어! ${score}개 벽돌 파괴`)}bricks.flat().forEach(b=>{if(b.on&&x>b.x&&x<b.x+45&&y>b.y&&y<b.y+15){b.on=false;dy*=-1;score++;}});if(score===40){alive=false;say('완벽해! 벽돌 40개를 전부 깼어!')}ctx.clearRect(0,0,420,340);ctx.fillStyle='#f4b942';bricks.flat().filter(b=>b.on).forEach(b=>ctx.fillRect(b.x,b.y,45,15));ctx.fillStyle='#70b7ff';ctx.fillRect(px,320,pad,9);ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.fillStyle='white';ctx.fill()},16);
+  soloCleanup=()=>{clearInterval(timer);c.removeEventListener('pointermove',move)};
+ }else if(i===2){help.textContent='1~100 사이 숨겨진 숫자를 7번 안에 찾아라!';stage.innerHTML=`<div class="big">🔢</div><input id="guess" type="number" min="1" max="100" placeholder="1~100 숫자" style="max-width:220px"><p><button class="primary" onclick="guessSubmit()">확인</button></p><div id="guessHistory"></div>`;let secret=Math.ceil(Math.random()*100),tries=0,done=false;window.guessSubmit=()=>{let v=Number(document.getElementById('guess').value);if(!v||v>100||v<1){say('1부터 100 사이 숫자를 넣어!');return}if(done)return;tries++;let msg=v===secret?'정답! 🎉':v<secret?'더 크게! ⬆️':'더 작게! ⬇️';document.getElementById('guessHistory').innerHTML+=`<p>${tries}번째: ${v} → ${msg}</p>`;if(v===secret){done=true;say(`${tries}번 만에 성공!`)}else if(tries>=7){done=true;say(`실패! 정답은 ${secret}이었어.`)}};soloCleanup=()=>delete window.guessSubmit;
+ }else if(i===3){help.textContent='초록색이 되는 순간 화면을 눌러! 너무 일찍 누르면 실패야.';stage.innerHTML=`<button id="reactionPad" style="width:100%;height:190px;font-size:24px;background:#dce5f1">시작하려면 누르기</button>`;let mode='idle',t=0,timer=null;const b=document.getElementById('reactionPad');b.onclick=()=>{if(mode==='idle'||mode==='done'){clearTimeout(timer);mode='wait';b.style.background='#e6a64a';b.textContent='초록색을 기다려...';timer=setTimeout(()=>{mode='go';t=performance.now();b.style.background='#22a66a';b.textContent='지금!!'},1000+Math.random()*3000)}else if(mode==='wait'){clearTimeout(timer);mode='done';b.style.background='#e6a64a';b.textContent='너무 빨라! 다시 눌러';}else{let ms=Math.round(performance.now()-t);mode='done';b.style.background='#dce5f1';b.textContent=ms+'ms · 다시 도전';say(ms<220?'엄청 빠른데?!':ms<300?'좋은 기록이야!':'한 번 더 도전해 봐!')}};soloCleanup=()=>clearTimeout(timer);
+ }else if(i===4){help.textContent='지뢰를 피해 모든 안전한 칸을 열어! 숫자는 주변 지뢰 개수야.';let size=8,mines=10,opened=new Set(),flags=new Set(),board=Array.from({length:size*size},()=>false);while(board.filter(Boolean).length<mines){board[Math.floor(Math.random()*board.length)]=true}const count=k=>{let x=k%size,y=Math.floor(k/size),n=0;for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){let X=x+xx,Y=y+yy;if(X>=0&&Y>=0&&X<size&&Y<size&&board[Y*size+X])n++}return n};stage.innerHTML=`<div id="mineGrid" style="display:grid;grid-template-columns:repeat(8, minmax(0,1fr));gap:4px;max-width:390px;margin:auto"></div><p>깃발 모드 <button id="flagMode" class="ghost">끄기</button></p>`;let flagMode=false;document.getElementById('flagMode').onclick=()=>{flagMode=!flagMode;document.getElementById('flagMode').textContent=flagMode?'켜짐':'끄기'};const grid=document.getElementById('mineGrid');function draw(){grid.innerHTML='';for(let k=0;k<64;k++){let b=document.createElement('button');b.style.padding='0';b.style.aspectRatio='1';b.style.minWidth='0';b.textContent=flags.has(k)?'🚩':opened.has(k)?(board[k]?'💣':count(k)||''):'';b.style.background=opened.has(k)?'#dfe8f5':'#aebfd5';b.onclick=()=>{if(opened.has(k))return;if(flagMode){flags.has(k)?flags.delete(k):flags.add(k);draw();return}if(board[k]){opened=new Set(Array.from({length:64},(_,j)=>j));draw();say('지뢰를 밟았어! 다시 시작해 봐.');return}opened.add(k);if(count(k)===0){let todo=[k];while(todo.length){let q=todo.pop(),x=q%8,y=q>>3;for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){let X=x+xx,Y=y+yy,z=Y*8+X;if(X>=0&&Y>=0&&X<8&&Y<8&&!board[z]&&!opened.has(z)){opened.add(z);if(count(z)===0)todo.push(z)}}}}draw();if(opened.size===54)say('성공! 지뢰를 전부 피했어!')};grid.appendChild(b)}}draw();soloCleanup=()=>{};
+ }else if(i===5){help.textContent='같은 그림 카드 8쌍을 찾아라. 적은 횟수로 끝낼수록 좋아!';let vals=['🍎','🚀','🐸','🎲','🌈','⚽','🐱','🍕'];let deck=[...vals,...vals].sort(()=>Math.random()-.5),open=[],matched=new Set(),moves=0;stage.innerHTML=`<div id="memoryGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:360px;margin:auto"></div><p id="memoryMoves">시도 0회</p>`;let grid=document.getElementById('memoryGrid');deck.forEach((v,k)=>{let b=document.createElement('button');b.style.aspectRatio='1';b.style.fontSize='28px';b.textContent='❔';b.onclick=()=>{if(open.length===2||matched.has(k)||open.includes(k))return;b.textContent=v;open.push(k);if(open.length===2){moves++;document.getElementById('memoryMoves').textContent='시도 '+moves+'회';if(deck[open[0]]===deck[open[1]]){open.forEach(j=>matched.add(j));open=[];if(matched.size===16)say(`완료! ${moves}번 만에 찾았어!`)}else setTimeout(()=>{open.forEach(j=>grid.children[j].textContent='❔');open=[]},650)}};grid.appendChild(b)});soloCleanup=()=>{};
+ }else if(i===6){help.textContent='숫자 타일을 밀어서 1부터 15까지 순서대로 정렬해!';let arr=[...Array(15)].map((_,j)=>j+1).concat(0);do{arr.sort(()=>Math.random()-.5)}while(!isSolvable(arr));stage.innerHTML=`<div id="slideGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;max-width:340px;margin:auto"></div><p id="slideMoves">이동 0회</p>`;let moves=0,g=document.getElementById('slideGrid');function isSolvable(a){let inv=0;for(let x=0;x<15;x++)for(let y=x+1;y<16;y++)if(a[x]&&a[y]&&a[x]>a[y])inv++;let row=4-Math.floor(a.indexOf(0)/4);return (inv+row)%2===1}function draw(){g.innerHTML='';arr.forEach((v,k)=>{let b=document.createElement('button');b.style.aspectRatio='1';b.textContent=v||'';b.style.background=v?'#dce8f7':'#fff';b.onclick=()=>{let z=arr.indexOf(0);if(Math.abs(k%4-z%4)+Math.abs((k/4|0)-(z/4|0))!==1)return;[arr[k],arr[z]]=[arr[z],arr[k]];moves++;document.getElementById('slideMoves').textContent='이동 '+moves+'회';draw();if(arr.every((x,j)=>x===(j+1)%16))say(`완성! ${moves}번 이동했어!`) };g.appendChild(b)})}draw();soloCleanup=()=>{};
+ }else if(i===7){help.textContent='화살표 버튼으로 미로를 탈출해! 이동 횟수를 줄여 별 3개에 도전.';const maze=['##########','#S...#...#','###..#.#.#','#....#.#.#','#.####.#.#','#......#.#','##.###...#','#...#....#','#.#...##E#','##########'];let pos=[1,1],steps=0;stage.innerHTML=`<div id="mazeGrid" style="display:grid;grid-template-columns:repeat(10,25px);justify-content:center;gap:2px"></div><div class="row" style="max-width:220px;margin:12px auto"><button onclick="mazeMove(0,-1)">↑</button><button onclick="mazeMove(-1,0)">←</button><button onclick="mazeMove(0,1)">↓</button><button onclick="mazeMove(1,0)">→</button></div><p id="mazeSteps">이동 0회</p>`;let g=document.getElementById('mazeGrid');function draw(){g.innerHTML='';maze.forEach((row,y)=>[...row].forEach((ch,x)=>{let d=document.createElement('div');d.style.cssText=`width:25px;height:25px;border-radius:4px;background:${pos[0]===x&&pos[1]===y?'#f3bd52':ch==='#'?'#40536b':ch==='E'?'#6fc69b':'#e8eef6'}`;d.textContent=pos[0]===x&&pos[1]===y?'🙂':ch==='E'?'🏁':'';g.appendChild(d)}))}window.mazeMove=(dx,dy)=>{let x=pos[0]+dx,y=pos[1]+dy;if(maze[y]?.[x]&&maze[y][x]!=='#'){pos=[x,y];steps++;document.getElementById('mazeSteps').textContent='이동 '+steps+'회';draw();if(maze[y][x]==='E')say(`탈출 성공! ${steps}번 이동했어!`)}};draw();const key=e=>{let m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};if(m[e.key])mazeMove(...m[e.key])};window.addEventListener('keydown',key);soloCleanup=()=>{window.removeEventListener('keydown',key);delete window.mazeMove};
+ }else if(i===8){help.textContent='불이 들어온 순서를 기억하고 그대로 눌러! 라운드가 갈수록 길어져.';let seq=[],input=[],level=0,locked=false;stage.innerHTML=`<div class="big" id="simonLevel">레벨 1</div><div style="display:grid;grid-template-columns:repeat(2,110px);gap:8px;justify-content:center"><button style="height:100px;background:#df6c6c" onclick="simonPress(0)">빨강</button><button style="height:100px;background:#e9c34d" onclick="simonPress(1)">노랑</button><button style="height:100px;background:#58a978" onclick="simonPress(2)">초록</button><button style="height:100px;background:#5c8fd5" onclick="simonPress(3)">파랑</button></div><p><button class="primary" onclick="simonStart()">시작 / 다음 라운드</button></p>`;window.simonStart=()=>{seq.push(Math.floor(Math.random()*4));input=[];locked=true;document.getElementById('simonLevel').textContent='레벨 '+seq.length+' · 순서를 기억해!';seq.forEach((v,j)=>setTimeout(()=>{let b=stage.querySelectorAll('button')[v];if(b){b.style.filter='brightness(1.5)';setTimeout(()=>b.style.filter='',260)}},j*500));setTimeout(()=>locked=false,seq.length*500+300)};window.simonPress=v=>{if(locked||!seq.length)return;input.push(v);if(input[input.length-1]!==seq[input.length-1]){say('아쉽다! 레벨 '+seq.length+'에서 실패했어. 다시 시작해 봐.');seq=[];return}if(input.length===seq.length)say('정확해! 다음 라운드로 가자.')};soloCleanup=()=>{delete window.simonStart;delete window.simonPress};
+ }else if(i===9){help.textContent='움직이는 바늘이 초록 구간에 왔을 때 멈춰! 5번 도전해서 점수를 모아.';stage.innerHTML=`<div style="height:22px;background:#e5eaf1;border-radius:20px;position:relative;margin:45px 0"><div style="position:absolute;left:42%;width:16%;height:100%;background:#6fc69b;border-radius:20px"></div><div id="timingNeedle" style="position:absolute;left:0;top:-9px;width:5px;height:40px;background:#26364b"></div></div><button class="primary" id="timingStop">멈춰!</button><div id="timingScore">성공 0/5</div>`;let pos=0,dir=1,score=0,tries=0;const needle=document.getElementById('timingNeedle'),scoreEl=document.getElementById('timingScore');const timer=setInterval(()=>{pos+=dir*1.8;if(pos>98||pos<0)dir*=-1;needle.style.left=pos+'%'},16);document.getElementById('timingStop').onclick=()=>{if(tries>=5)return;tries++;if(pos>=42&&pos<=58)score++;scoreEl.textContent=`성공 ${score}/5 · 도전 ${tries}/5`;if(tries===5)say(`최종 점수 ${score*20}/100점! ${score>=4?'타이밍 장인!':'다시 도전해 봐!'}`)};soloCleanup=()=>clearInterval(timer);
+ }
  box.scrollIntoView({behavior:'smooth',block:'center'});
 }
-let secret=0,tries=0;function resetGuess(clear=true){secret=Math.floor(Math.random()*100)+1;tries=0;if(clear&&document.getElementById('guessResult'))document.getElementById('guessResult').textContent='새 게임 시작!'}
-function checkGuess(){let v=Number(document.getElementById('guess').value),r=document.getElementById('guessResult');if(!v||v<1||v>100){r.textContent='1~100 사이 숫자를 입력해!';return}tries++;r.textContent=v===secret?`정답! ${tries}번 만에 맞혔어! 🎉`:v<secret?'더 큰 숫자야! ⬆️':'더 작은 숫자야! ⬇️'}
-let reactionReady=false,reactionStart=0,reactionTimer=null;
-function reactionClick(){let b=document.getElementById('reactionBtn'),r=document.getElementById('reactionResult');if(!reactionReady){if(b.dataset.waiting==='yes'){clearTimeout(reactionTimer);b.dataset.waiting='';r.textContent='너무 빨랐어! 다시 시작해 봐.';b.textContent='다시 도전';return}b.dataset.waiting='yes';b.textContent='초록색을 기다려...';r.textContent='';reactionTimer=setTimeout(()=>{reactionReady=true;reactionStart=performance.now();b.style.background='#25b86b';b.textContent='지금 클릭!'},1000+Math.random()*3000)}else{let ms=Math.round(performance.now()-reactionStart);reactionReady=false;b.dataset.waiting='';b.style.background='';b.textContent='다시 도전';r.textContent=`반응속도: ${ms}ms`}}
 let activeRoom=null;
 function copyCode(){
  const code=document.getElementById('roomCode').textContent.trim();
@@ -135,7 +163,8 @@ window.createRoom = window.createRoom || function () {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
 import {
-  getFirestore, doc, runTransaction, onSnapshot, serverTimestamp
+  getFirestore, doc, runTransaction, onSnapshot, serverTimestamp,
+  collection, query, where, limit, getDocs, deleteDoc, Timestamp
 } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -157,12 +186,27 @@ const authReady = signInAnonymously(auth);
 authReady.then(() => {
   const status = document.getElementById("roomStatus");
   if (status) status.textContent = "Firebase에 연결됐어. 방을 만들 수 있어.";
+  cleanupExpiredRooms().catch((error) => console.warn("만료된 방 정리 실패:", error));
 }).catch((error) => {
   showFirebaseError(error, document.getElementById("roomStatus"));
 });
 
 function makeRoomCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// 게임 종료 후 2시간이 지난 방을 방문 시 정리합니다.
+async function cleanupExpiredRooms() {
+  const expiredRoomsQuery = query(
+    collection(db, "rooms"),
+    where("expiresAt", "<=", Timestamp.now()),
+    limit(100)
+  );
+  const expiredSnapshot = await getDocs(expiredRoomsQuery);
+  if (expiredSnapshot.empty) return 0;
+  await Promise.all(expiredSnapshot.docs.map((roomSnapshot) => deleteDoc(roomSnapshot.ref)));
+  console.info(`만료된 X99 방 ${expiredSnapshot.size}개를 정리했어.`);
+  return expiredSnapshot.size;
 }
 
 function showFirebaseError(error, target) {
@@ -192,6 +236,19 @@ function renderX99WordChain(room) {
 
   const players = Array.isArray(room.players) ? room.players : [];
   const game = room.game;
+
+  if (game && game.type === "wordchain" && game.status === "finished") {
+    const scores = game.scores || {};
+    const ranking = [...players].sort((a, b) => Number(scores[b.uid] || 0) - Number(scores[a.uid] || 0));
+    const rankingHtml = ranking.map((player, index) =>
+      `<p>${index + 1}위 · ${x99EscapeHtml(player.name)}: ${Number(scores[player.uid] || 0)}점</p>`
+    ).join("");
+    target.innerHTML = `
+      <h3>게임이 끝났어!</h3>
+      ${rankingHtml}
+      <p class="notice">이 게임방은 종료 후 약 2시간 뒤, 누군가 X99에 다시 접속하면 자동 정리돼.</p>`;
+    return;
+  }
 
   if (!game || game.type !== "wordchain" || game.status !== "playing") {
     target.innerHTML = `
@@ -225,6 +282,7 @@ function renderX99WordChain(room) {
       <input id="x99WordInput" maxlength="12" placeholder="단어 입력" ${myTurn ? "" : "disabled"}>
       <button class="primary" onclick="submitX99Word()" ${myTurn ? "" : "disabled"}>입력!</button>
     </div>
+    ${myUid && myUid === room.hostUid ? '<p><button class="ghost" onclick="endX99WordChain()">게임 종료하기</button></p>' : ''}
     <div id="x99WordMessage" class="result" aria-live="polite"></div>`;
 }
 
@@ -376,6 +434,40 @@ window.startX99WordChain = async function () {
     const output = document.getElementById("x99WordMessage");
     if (output) output.textContent = message;
     else alert(message);
+  }
+};
+
+window.endX99WordChain = async function () {
+  const output = document.getElementById("x99WordMessage");
+  if (!activeRoom) {
+    if (output) output.textContent = "먼저 방을 만들거나 참가해 줘.";
+    return;
+  }
+  if (!confirm("정말 게임을 종료할까? 종료하면 다시 진행할 수 없어.")) return;
+
+  try {
+    const credential = await authReady;
+    const uid = credential.user.uid;
+    const roomRef = doc(db, "rooms", activeRoom);
+    const endedAt = Date.now();
+    const expiresAt = Timestamp.fromMillis(endedAt + 2 * 60 * 60 * 1000);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists()) throw new Error("방을 찾을 수 없어.");
+      const room = snapshot.data();
+      if (room.hostUid !== uid) throw new Error("방장만 게임을 종료할 수 있어.");
+      if (!room.game || room.game.status !== "playing") throw new Error("진행 중인 게임이 아니야.");
+
+      transaction.update(roomRef, {
+        status: "finished",
+        "game.status": "finished",
+        endedAt,
+        expiresAt
+      });
+    });
+  } catch (error) {
+    if (output) output.textContent = error.message || "게임을 종료하지 못했어.";
   }
 };
 
