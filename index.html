@@ -20,10 +20,12 @@ main{max-width:1160px;margin:auto;padding:28px 18px 70px}.hero{padding:42px 34px
 input{width:100%;background:#fff;border:1px solid #d7dfeb;border-radius:9px;color:#253449;padding:13px 14px;outline:none}input:focus{border-color:#6b9be5;box-shadow:0 0 0 3px #3976d71a}label{display:block;color:#65758b;font-size:13px;margin:14px 0 7px}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}.code{font-size:30px;font-weight:900;letter-spacing:7px;color:var(--blue);padding:12px 0}.notice{color:var(--muted);font-size:13px;line-height:1.6}.gamebox{background:#f7f9fc;border:1px solid var(--line);border-radius:13px;padding:22px;margin-top:16px;text-align:center}.gamebox h3{font-size:24px}.big{font-size:42px;font-weight:900;margin:12px}.result{min-height:26px;color:#2f6dc4;font-weight:750}.footer{text-align:center;color:#98a3b3;font-size:12px;margin-top:45px}
 @media(max-width:550px){header{padding:14px 16px}.hero{padding:30px 20px}.hero:after{width:190px;height:150px;right:-55px;bottom:-65px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.row{flex-direction:column}}
 .wordchain-word{display:inline-block;background:#fff;border:1px solid #dce4ef;border-radius:8px;padding:9px 12px;margin:4px;font-weight:750;color:#304258}.wordchain-turn{color:#2f6dc4;font-weight:850;font-size:18px}.wordchain-list{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin:14px 0}button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+.chat-log{max-height:180px;overflow:auto;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0}.chat-line{padding:4px 0;border-bottom:1px solid #eef1f6;font-size:13px}.room-roster{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:10px 0}.room-roster span{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 10px;font-size:13px}.timer-readout{font-size:24px;font-weight:900;color:#2f6dc4}.spectator-note{background:#fff7e7;border:1px solid #f3dfb5;border-radius:9px;padding:9px;margin:10px 0}
 </style>
 </head>
 <body>
-<header><div class="logo">X99</div><div class="row" style="flex:0 1 auto;align-items:center"><button class="cyan" onclick="showSolo()">혼자 하기</button><button class="ghost" onclick="showHome()">홈</button></div></header>
+<header><div class="logo">X99</div><button class="ghost" onclick="showHome()">홈</button></header>
 <main>
 <section id="home">
  <div class="hero">
@@ -59,6 +61,7 @@ input{width:100%;background:#fff;border:1px solid #d7dfeb;border-radius:9px;colo
  <div class="panel">
   <h3>방 코드 입력</h3><label>닉네임</label><input id="joinName" maxlength="12" placeholder="내 닉네임">
   <label>6자리 방 코드</label><input id="joinCode" maxlength="6" inputmode="numeric" placeholder="예: 482193">
+  <label>입장 방식</label><select id="joinRole" style="width:100%;padding:12px;border:1px solid #d7dfeb;border-radius:9px;background:#fff"><option value="player">플레이어로 입장</option><option value="spectator">관전자로 입장</option></select>
   <div style="margin-top:13px"><button class="cyan" onclick="joinRoom()">방 참가하기</button></div>
   <div id="joinResult" class="result"></div>
  </div>
@@ -145,7 +148,7 @@ function renderX99MultiGame(i){
   box.innerHTML=`<h2>🔤 실시간 끝말잇기</h2>
    <p>방에 연결한 친구들과 차례대로 단어를 이어 가자!</p>
    <div class="gamebox"><div id="wordchainLive"><p class="notice">방 정보를 불러오는 중...</p></div></div>
-   <p class="notice">규칙: 두 글자 이상의 한글 단어를 입력해. 앞 단어의 마지막 글자로 시작해야 하고, 이미 나온 단어는 다시 쓸 수 없어. 현재 버전은 사전 자동 검증과 시간 제한은 없어.</p>`;
+   <p class="notice">모드: 기본 끝말잇기 · 초성 퀴즈 · 스피드 단어 · 연상 단어 / 턴 제한 15초</p>`;
   if(window.refreshWordChainUI) window.refreshWordChainUI();
  }else{
   box.innerHTML=`<h2>${multiNames[i][0]} ${multiNames[i][1]}</h2><p>이 게임은 다음 업데이트에서 추가할 예정이야!</p><p class="notice">현재 실시간 플레이가 가능한 게임은 끝말잇기야.</p>`;
@@ -243,57 +246,40 @@ function x99EscapeHtml(value) {
 function renderX99WordChain(room) {
   const target = document.getElementById("wordchainLive");
   if (!target) return;
-
   const players = Array.isArray(room.players) ? room.players : [];
+  const spectators = Array.isArray(room.spectators) ? room.spectators : [];
   const game = room.game;
-
+  const uid = auth.currentUser?.uid;
+  const isPlayer = players.some(p => p.uid === uid);
+  const isSpectator = spectators.some(p => p.uid === uid);
+  const roster = `<div class="room-roster">${players.map(p=>`<span>🎮 ${x99EscapeHtml(p.name)}</span>`).join('')}${spectators.map(p=>`<span>👀 ${x99EscapeHtml(p.name)}</span>`).join('')}</div><p class="notice">플레이어 ${players.length}/10 · 관전자 ${spectators.length}</p>`;
+  const chat = Array.isArray(room.chat) ? room.chat.slice(-40) : [];
+  const chatHtml = `<h4 style="margin:14px 0 6px">채팅</h4><div class="chat-log" id="x99ChatLog">${chat.map(m=>`<div class="chat-line"><b>${x99EscapeHtml(m.name)}:</b> ${x99EscapeHtml(m.text)}</div>`).join('') || '<span class="notice">첫 메시지를 남겨 봐!</span>'}</div><div class="row"><input id="x99ChatInput" maxlength="120" placeholder="메시지 입력"><button class="cyan" onclick="sendX99Chat()">보내기</button></div>`;
   if (game && game.type === "wordchain" && game.status === "finished") {
     const scores = game.scores || {};
-    const ranking = [...players].sort((a, b) => Number(scores[b.uid] || 0) - Number(scores[a.uid] || 0));
-    const rankingHtml = ranking.map((player, index) =>
-      `<p>${index + 1}위 · ${x99EscapeHtml(player.name)}: ${Number(scores[player.uid] || 0)}점</p>`
-    ).join("");
-    target.innerHTML = `
-      <h3>게임이 끝났어!</h3>
-      ${rankingHtml}
-      <p class="notice">이 게임방은 종료 후 약 2시간 뒤, 누군가 X99에 다시 접속하면 자동 정리돼.</p>`;
+    const ranking = [...players].sort((a,b)=>Number(scores[b.uid]||0)-Number(scores[a.uid]||0));
+    target.innerHTML = `${roster}<h3>게임이 끝났어!</h3>${ranking.map((p,i)=>`<p>${i+1}위 · ${x99EscapeHtml(p.name)}: ${Number(scores[p.uid]||0)}점</p>`).join('')}<p class="notice">게임 종료 후 약 2시간 뒤 정리돼.</p>${chatHtml}`;
     return;
   }
-
   if (!game || game.type !== "wordchain" || game.status !== "playing") {
-    target.innerHTML = `
-      <p>${players.length}/8명 참가 중</p>
-      <p class="notice">방에 2명 이상 모이면 방장이 게임을 시작할 수 있어.</p>
-      <button class="cyan" onclick="startX99WordChain()">방장이 게임 시작하기</button>`;
+    const isHost = uid && uid === room.hostUid;
+    target.innerHTML = `${roster}<p class="notice">방장은 모드를 선택하고 게임을 시작해 줘. 플레이어 2명 이상 필요해.</p>${isHost ? `<label>게임 모드</label><select id="x99Mode" style="width:100%;padding:12px;border:1px solid #d7dfeb;border-radius:9px;background:white"><option value="classic">기본 끝말잇기</option><option value="chosung">초성 퀴즈</option><option value="speed">스피드 단어</option><option value="assoc">단어 연상</option></select><p><button class="primary" onclick="startX99WordChain()">게임 시작하기</button></p>` : '<p class="notice">방장이 게임을 시작하기를 기다리는 중이야.</p>'}${chatHtml}`;
     return;
   }
-
-  const myUid = auth.currentUser?.uid;
-  const currentPlayer = players.find(p => p.uid === game.currentTurnUid);
-  const myTurn = !!myUid && game.currentTurnUid === myUid;
-  const words = Array.isArray(game.words) ? game.words : [];
-  const scores = game.scores || {};
-  const wordItems = words.length
-    ? words.map((item, index) =>
-        `<span class="wordchain-word">${index + 1}. ${x99EscapeHtml(item.word)} <small>(${x99EscapeHtml(item.playerName)})</small></span>`
-      ).join("")
-    : `<span class="notice">첫 단어를 입력해 줘!</span>`;
-  const scoreItems = players.map(player =>
-    `<span class="pill">${x99EscapeHtml(player.name)}: ${Number(scores[player.uid] || 0)}점</span>`
-  ).join(" ");
-
-  target.innerHTML = `
-    <p class="wordchain-turn">${myTurn ? "🎯 네 차례야!" : `⏳ ${x99EscapeHtml(currentPlayer?.name || "다음 참가자")} 차례야.`}</p>
-    <p>${players.length}명 참가 중</p>
-    <div class="wordchain-list">${wordItems}</div>
-    <p>${scoreItems}</p>
-    <p class="notice">${words.length ? `다음 단어는 “${x99EscapeHtml(words[words.length - 1].word.slice(-1))}”로 시작해야 해.` : "첫 단어는 자유롭게 입력해!"}</p>
-    <div class="row">
-      <input id="x99WordInput" maxlength="12" placeholder="단어 입력" ${myTurn ? "" : "disabled"}>
-      <button class="primary" onclick="submitX99Word()" ${myTurn ? "" : "disabled"}>입력!</button>
-    </div>
-    ${myUid && myUid === room.hostUid ? '<p><button class="ghost" onclick="endX99WordChain()">게임 종료하기</button></p>' : ''}
-    <div id="x99WordMessage" class="result" aria-live="polite"></div>`;
+  const current = players.find(p=>p.uid===game.currentTurnUid);
+  const myTurn = !!uid && game.currentTurnUid===uid && isPlayer;
+  const words = Array.isArray(game.words)?game.words:[];
+  const scores = game.scores||{};
+  const modeNames={classic:'기본 끝말잇기',chosung:'초성 퀴즈',speed:'스피드 단어',assoc:'단어 연상'};
+  const mode=game.mode||'classic';
+  const wordHtml=words.map((w,i)=>`<span class="wordchain-word">${i+1}. ${x99EscapeHtml(w.word)} <small>(${x99EscapeHtml(w.playerName)})</small></span>`).join('') || '<span class="notice">첫 단어를 기다리는 중!</span>';
+  const deadline=Number(game.turnStartedAt||Date.now())+15000;
+  const remain=Math.max(0,Math.ceil((deadline-Date.now())/1000));
+  const prompt=game.prompt ? `<p class="spectator-note">문제: <b>${x99EscapeHtml(game.prompt)}</b></p>` : '';
+  target.innerHTML = `${roster}<h3>${modeNames[mode]||modeNames.classic}</h3><p class="wordchain-turn">${myTurn?'🎯 네 차례야!':`⏳ ${x99EscapeHtml(current?.name||'다음 참가자')} 차례야.`}</p><div class="timer-readout" id="x99TurnTimer">${remain}초</div>${prompt}<div class="wordchain-list">${wordHtml}</div><p>${players.map(p=>`<span class="pill">${x99EscapeHtml(p.name)}: ${Number(scores[p.uid]||0)}점</span>`).join(' ')}</p><p class="notice">${words.length?`다음 단어는 “${x99EscapeHtml(words[words.length-1].word.slice(-1))}”로 시작해야 해.`:'첫 단어는 자유롭게 입력해!'}</p>${isPlayer?`<div class="row"><input id="x99WordInput" maxlength="12" placeholder="단어 입력" ${myTurn?'':'disabled'}><button class="primary" onclick="submitX99Word()" ${myTurn?'':'disabled'}>입력!</button></div>`:'<p class="spectator-note">👀 관전 중이야. 단어 입력은 할 수 없어.</p>'}<div id="x99WordMessage" class="result" aria-live="polite"></div>${uid===room.hostUid?'<p><button class="ghost" onclick="endX99WordChain()">게임 종료하기</button></p>':''}${chatHtml}`;
+  if (window.__x99Timer) clearInterval(window.__x99Timer);
+  window.__x99Timer=setInterval(()=>{const el=document.getElementById('x99TurnTimer');if(!el){clearInterval(window.__x99Timer);return;}const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));el.textContent=left+'초';if(left===0 && (isPlayer || isSpectator)) window.expireX99Turn().catch(()=>{});},250);
+  const log=document.getElementById('x99ChatLog');if(log)log.scrollTop=log.scrollHeight;
 }
 
 window.refreshWordChainUI = function () {
@@ -325,7 +311,7 @@ function watchRoom(roomCode) {
     }
     renderX99WordChain(room);
     const names = players.map(player => player.name).join(", ");
-    const statusText = `${players.length}/8명 참가 중${names ? " · " + names : ""}`;
+    const statusText = `${players.length}/10명 플레이 · ${(room.spectators||[]).length}명 관전${names ? " · " + names : ""}`;
     const status = document.getElementById("roomStatus");
     if (status) status.textContent = statusText;
     const joinResult = document.getElementById("joinResult");
@@ -357,10 +343,11 @@ window.createRoom = async function () {
         transaction.set(roomRef, {
           hostUid: user.uid,
           players: [{ uid: user.uid, name, joinedAt: Date.now() }],
+          spectators: [], chat: [],
           status: "waiting",
           selectedGame: null,
           selectedGameAt: null,
-          maxPlayers: 8,
+          maxPlayers: 10,
           createdAt: serverTimestamp()
         });
         return true;
@@ -399,11 +386,15 @@ window.joinRoom = async function () {
       if (!snapshot.exists()) throw new Error("ROOM_NOT_FOUND");
       const room = snapshot.data();
       const players = Array.isArray(room.players) ? room.players : [];
-      if (players.some(player => player.uid === user.uid)) return;
-      if (players.length >= (room.maxPlayers || 8)) throw new Error("ROOM_FULL");
-      transaction.update(roomRef, {
-        players: [...players, { uid: user.uid, name, joinedAt: Date.now() }]
-      });
+      const spectators = Array.isArray(room.spectators) ? room.spectators : [];
+      if (players.some(p => p.uid === user.uid) || spectators.some(p => p.uid === user.uid)) return;
+      const role = document.getElementById("joinRole")?.value || "player";
+      if (role === "spectator") {
+        transaction.update(roomRef, { spectators: [...spectators, { uid: user.uid, name, joinedAt: Date.now() }] });
+      } else {
+        if (players.length >= (room.maxPlayers || 10)) throw new Error("ROOM_FULL");
+        transaction.update(roomRef, { players: [...players, { uid: user.uid, name, joinedAt: Date.now() }] });
+      }
     });
 
     activeRoom = code;
@@ -413,7 +404,7 @@ window.joinRoom = async function () {
     if (error.message === "ROOM_NOT_FOUND") {
       output.textContent = "그 방 코드를 찾을 수 없어. 코드를 다시 확인해 줘.";
     } else if (error.message === "ROOM_FULL") {
-      output.textContent = "이 방은 이미 8명으로 가득 찼어.";
+      output.textContent = "이 방은 플레이어 10명으로 가득 찼어. 관전자로 입장할 수 있어.";
     } else {
       showFirebaseError(error, output);
     }
@@ -461,6 +452,8 @@ window.startX99WordChain = async function () {
 
       const scores = {};
       players.forEach(player => { scores[player.uid] = 0; });
+      const mode = document.getElementById("x99Mode")?.value || "classic";
+      const prompts = { chosung: "ㅂㄴㄴ", speed: "15초 안에 떠오르는 단어 말하기", assoc: "앞 단어와 관련된 단어 말하기" };
 
       transaction.update(roomRef, {
         status: "playing",
@@ -468,7 +461,10 @@ window.startX99WordChain = async function () {
         selectedGameAt: Date.now(),
         game: {
           type: "wordchain",
+          mode,
+          prompt: prompts[mode] || "",
           status: "playing",
+          turnStartedAt: Date.now(),
           words: [],
           usedWords: [],
           currentTurnUid: players[0].uid,
@@ -519,6 +515,16 @@ window.endX99WordChain = async function () {
   }
 };
 
+window.sendX99Chat = async function () {
+  const input=document.getElementById('x99ChatInput'); const text=(input?.value||'').trim();
+  if(!text||!activeRoom)return;
+  try{const user=(await authReady).user;const ref=doc(db,'rooms',activeRoom);await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('방을 찾을 수 없어.');const room=snap.data();const members=[...(room.players||[]),...(room.spectators||[])];const me=members.find(p=>p.uid===user.uid);if(!me)throw new Error('방에 입장한 사람만 채팅할 수 있어.');const chat=Array.isArray(room.chat)?room.chat:[];tx.update(ref,{chat:[...chat,{uid:user.uid,name:me.name,text:text.slice(0,120),at:Date.now()}]});});if(input)input.value='';}catch(e){const out=document.getElementById('x99WordMessage');if(out)out.textContent=e.message||'채팅을 보내지 못했어.';}
+};
+window.expireX99Turn = async function(){
+ if(!activeRoom)return;const user=(await authReady).user;const ref=doc(db,'rooms',activeRoom);
+ await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())return;const room=snap.data(),game=room.game,players=room.players||[];const isMember=[...(room.players||[]),...(room.spectators||[])].some(p=>p.uid===user.uid);if(!isMember||!game||game.status!=='playing'||Date.now()-Number(game.turnStartedAt||0)<15000)return;const idx=players.findIndex(p=>p.uid===game.currentTurnUid);if(idx<0||players.length<2)return;const next=players[(idx+1)%players.length];const scores={...(game.scores||{})};scores[game.currentTurnUid]=Math.max(0,Number(scores[game.currentTurnUid]||0)-1);tx.update(ref,{'game.currentTurnUid':next.uid,'game.turnStartedAt':Date.now(),'game.scores':scores});});
+};
+
 window.submitX99Word = async function () {
   const input = document.getElementById("x99WordInput");
   const output = document.getElementById("x99WordMessage");
@@ -558,13 +564,13 @@ window.submitX99Word = async function () {
       if (usedWords.includes(word)) throw new Error("이미 나온 단어야!");
 
       const words = Array.isArray(game.words) ? game.words : [];
-      if (words.length > 0) {
+      if (game.mode === "classic" && words.length > 0) {
         const lastWord = words[words.length - 1].word;
         const requiredFirstLetter = lastWord[lastWord.length - 1];
-        if (word[0] !== requiredFirstLetter) {
-          throw new Error(`“${requiredFirstLetter}”로 시작하는 단어를 입력해 줘.`);
-        }
+        if (word[0] !== requiredFirstLetter) throw new Error(`“${requiredFirstLetter}”로 시작하는 단어를 입력해 줘.`);
       }
+      if (game.mode === "chosung" && words.length === 0 && word !== "바나나") throw new Error("초성 ㅂㄴㄴ의 정답을 입력해 줘. (예: 바나나)");
+      if (game.mode === "assoc" && words.length > 0 && !word.startsWith(words[words.length-1].word.slice(-1))) throw new Error("앞 단어의 마지막 글자로 시작하는 연상 단어를 입력해 줘.");
 
       const nextWords = [
         ...words,
@@ -578,7 +584,8 @@ window.submitX99Word = async function () {
         "game.words": nextWords,
         "game.usedWords": [...usedWords, word],
         "game.scores": nextScores,
-        "game.currentTurnUid": nextPlayer.uid
+        "game.currentTurnUid": nextPlayer.uid,
+        "game.turnStartedAt": Date.now()
       });
     });
 
