@@ -198,8 +198,18 @@ let currentRoomUnsubscribe = null;
 const authReady = signInAnonymously(auth);
 authReady.then(() => {
   const status = document.getElementById("roomStatus");
-  if (status) status.textContent = "Firebase에 연결됐어. 방을 만들 수 있어.";
-  cleanupExpiredRooms().catch((error) => console.warn("만료된 방 정리 실패:", error));
+  if (status) status.textContent = "서버에 연결됐어. 방을 만들 수 있어.";
+ // 사이트 접속 시 만료된 방 정리
+cleanupExpiredRooms().catch((error) =>
+  console.warn("만료된 방 정리 실패:", error)
+);
+
+// 사이트가 열려 있는 동안 5분마다 만료된 방 확인
+setInterval(() => {
+  cleanupExpiredRooms().catch((error) =>
+    console.warn("만료된 방 정리 실패:", error)
+  );
+}, 5 * 60 * 1000);
 }).catch((error) => {
   showFirebaseError(error, document.getElementById("roomStatus"));
 });
