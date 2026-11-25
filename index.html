@@ -7,6 +7,9 @@
 <title>X99 - 99가지 미니게임</title>
 <meta name="description" content="X99에서 다양한 싱글플레이 및 멀티플레이 미니게임을 즐겨보세요! 친구들과 함께하는 온라인 게임 모음집입니다.">
 <meta name="keywords" content="X99, 미니게임, 온라인게임, 멀티게임, 친구게임, 끝말잇기">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <style>
 :root{--bg:#f3f5f9;--panel:#fff;--panel2:#edf2fa;--text:#202b3c;--muted:#718096;--blue:#3976d7;--blue-dark:#285fb8;--line:#e2e8f0;--soft:#eaf1fc}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;min-height:100vh}
@@ -668,7 +671,8 @@ const db = getFirestore(app);
 const S = window.X99;
 const $ = id => document.getElementById(id);
 const now = () => Date.now();
-const MAX_PLAYERS = 10, IDLE_TTL = 3 * 3600e3, END_TTL = 2 * 3600e3, REVEAL_MS = 4000;
+const MAX_PLAYERS = 10, IDLE_TTL = 3 * 3600e3, END_TTL = 2 * 3600e3, REVEAL_MS = 3000;
+const REVEAL_BY = { ox: 3500, quiz: 3500, rps: 2200, coin: 2200, dice: 2500, typing: 2500 }; // 정답 공개 후 다음 문제까지 대기(ms)
 const touch = (ms = IDLE_TTL) => ({ lastActiveAt: now(), expiresAt: Timestamp.fromMillis(now() + ms) });
 const esc = v => String(v ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
 let unsubRoom = null, unsubChat = null;
@@ -746,7 +750,7 @@ function showRoomUI(room) {
   $("roomCode").textContent = S.code;
   const players = room.players || [], spectators = room.spectators || [];
   $("roomRoster").innerHTML = players.map(p => `<span>${p.uid === room.hostUid ? "👑" : "🎮"} ${esc(p.name)}</span>`).join("") + spectators.map(p => `<span>👀 ${esc(p.name)}</span>`).join("");
-  $("roomInfo").textContent = `${players.length}/${MAX_PLAYERS}명 플레이 · ${spectators.length}명 관전` + (room.hostUid === S.uid ? " · 내가 방장이야" : "");
+  $("roomInfo").textContent = `${players.length}/${MAX_PLAYERS}명 플레이 · ${spectators.length}명 관전` + (room.hostUid === S.uid ? " · 내가 방장이야" : "") + (S.ping ? ` · 저장 ${S.ping}ms${S.ping > 700 ? " (느린 편이야)" : ""}` : "");
   const jr = $("joinResult");
   if (jr) jr.textContent = "";
 }
@@ -754,7 +758,7 @@ function showRoomUI(room) {
 function resetRoomUI(text) {
   if (unsubRoom) { unsubRoom(); unsubRoom = null; }
   if (unsubChat) { unsubChat(); unsubChat = null; }
-  S.code = null; S.room = null; S.syncKey = null;
+  S.code = null; S.room = null; S.syncKey = null; S.optAt = 0; S.latest = null;
   $("roomPanel").classList.add("hidden");
   $("roomEntry").classList.remove("hidden");
   $("multiGame").classList.add("hidden");
@@ -768,7 +772,11 @@ function watchRoom(code) {
   unsubRoom = onSnapshot(doc(db, "rooms", code), snap => {
     if (!snap.exists()) { resetRoomUI("이 방은 더 이상 존재하지 않아."); return; }
     const room = snap.data();
+    S.latest = room;
     if (!(room.memberUids || []).includes(S.uid)) { resetRoomUI("방에서 나왔어."); return; }
+    // 내가 방금 보낸 변경이 반영되기 전의 오래된 스냅샷은 건너뛰어서 화면이 깜빡이지 않게 해
+    if (S.optAt && (room.lastActiveAt || 0) < S.optAt && now() - S.optAt < 5000) return;
+    S.optAt = 0;
     S.room = room;
     showRoomUI(room);
     if (Number.isInteger(room.selectedGame)) {
@@ -876,7 +884,7 @@ const isTurnGame = g => g.type === "wordchain" || g.type === "baseball";
 const deadlineOf = g => {
   if (!g || g.status !== "playing") return null;
   if (isTurnGame(g)) return g.turnStartedAt + g.turnLimit;
-  return g.phase === "answer" ? g.roundStartedAt + g.roundLimit : g.revealAt + REVEAL_MS;
+  return g.phase === "answer" ? g.roundStartedAt + g.roundLimit : g.revealAt + (REVEAL_BY[g.type] || REVEAL_MS);
 };
 const gameKey = g => isTurnGame(g) ? `t${g.turnStartedAt}` : `r${g.round}:${g.phase}`;
 
@@ -890,16 +898,35 @@ function afterLeave(game, uid, before, after) {
   return g;
 }
 
+// 동작 처리: ① 내 화면 상태로 먼저 계산해 검증 오류는 즉시 보여 주고, 성공하면 화면을 바로 갱신(0ms 체감)
+// ② 그다음 서버에 트랜잭션으로 안전하게 반영해. 서버가 거절하면 서버 상태로 되돌려.
 async function roomTx(fn) {
+  const opts = S.nextOpts || {}; S.nextOpts = null; // 호출 직전에 설정된 옵션(apply:false 등)
   const uid = (await authReady).user.uid;
   if (!S.code) throw new Error("먼저 방을 만들거나 참가해 줘.");
-  const ref = doc(db, "rooms", S.code);
-  await runTransaction(db, async tx => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("방을 찾을 수 없어.");
-    const upd = fn(snap.data(), uid);
-    if (upd) tx.update(ref, upd);
-  });
+  if (S.room) {
+    const pre = fn(S.room, uid);          // 규칙 위반이면 여기서 바로 오류가 나서 네트워크를 안 거쳐
+    if (!pre) return;
+    if (opts.onOptimistic) opts.onOptimistic();
+    if (opts.apply !== false) { S.room = { ...S.room, ...pre }; S.optAt = pre.lastActiveAt || now(); window.x99Render(); }
+  }
+  const ref = doc(db, "rooms", S.code), t0 = performance.now();
+  let wrote = false;
+  try {
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error("방을 찾을 수 없어.");
+      const upd = fn(snap.data(), uid);
+      if (upd) { tx.update(ref, upd); wrote = true; }
+    });
+  } catch (e) {
+    S.optAt = 0;
+    if (S.latest) { S.room = S.latest; window.x99Render(); }
+    throw e;
+  }
+  if (!wrote && S.optAt) { S.optAt = 0; if (S.latest) { S.room = S.latest; window.x99Render(); } }
+  S.ping = Math.round(performance.now() - t0);
+  if (S.room) showRoomUI(S.room);
 }
 
 window.leaveRoom = async function () {
@@ -1261,6 +1288,7 @@ window.selectX99Game = async function (i) {
   try {
     if (!S.code) throw new Error("먼저 방을 만들거나 참가해 줘.");
     if (!GAMES[i]) throw new Error("아직 준비 중인 게임이야.");
+    S.nextOpts = { apply: false }; // 화면 이동은 스냅샷 동기화가 처리해
     await roomTx((room, uid) => {
       if (room.hostUid !== uid) throw new Error("게임 선택은 방장만 할 수 있어.");
       if (room.game && room.game.status === "playing") throw new Error("진행 중인 게임을 먼저 종료해 줘.");
@@ -1273,6 +1301,7 @@ window.selectX99Game = async function (i) {
 const ACTIONS = {
   async start() {
     const mode = $("x99Mode")?.value;
+    S.nextOpts = { apply: false }; // 랜덤 값(정답·초성)이 있어서 서버 결과를 기다려
     await roomTx((room, uid) => {
       if (room.hostUid !== uid) throw new Error("방장만 게임을 시작할 수 있어.");
       if (players(room).length < 2) throw new Error("친구가 한 명 이상 참가해야 시작할 수 있어!");
@@ -1300,6 +1329,7 @@ const ACTIONS = {
     const input = $("x99WordInput"), word = (input?.value || "").trim().replace(/\s+/g, "");
     if (!word) throw new Error("단어를 입력해 줘.");
     if (!/^[가-힣]{2,12}$/.test(word)) throw new Error("두 글자 이상, 한글 단어를 입력해 줘.");
+    S.nextOpts = { onOptimistic: () => { if (input) input.value = ""; } };
     await roomTx((room, uid) => {
       const g = room.game;
       if (!g || g.type !== "wordchain" || g.status !== "playing") throw new Error("아직 게임이 시작되지 않았어.");
@@ -1321,11 +1351,11 @@ const ACTIONS = {
       const scores = { ...(g.scores || {}) }; scores[uid] = (scores[uid] || 0) + 1;
       return { game: { ...g, prompt, words: [...words, { word, uid, playerName: me.name, at: now() }].slice(-60), usedWords: [...used, word], scores, misses: { ...(g.misses || {}), [uid]: 0 }, currentTurnUid: nextTurnUid(ps, g.out || [], uid), turnStartedAt: now() }, ...touch() };
     });
-    if (input) input.value = "";
   },
   async guess() {
     const input = $("x99GuessInput"), v = (input?.value || "").trim();
     if (!/^[1-9]{3}$/.test(v) || new Set(v).size !== 3) throw new Error("서로 다른 숫자 3개(1~9)를 입력해 줘.");
+    S.nextOpts = { onOptimistic: () => { if (input) input.value = ""; } };
     await roomTx((room, uid) => {
       const g = room.game;
       if (!g || g.type !== "baseball" || g.status !== "playing") throw new Error("아직 게임이 시작되지 않았어.");
@@ -1341,7 +1371,6 @@ const ACTIONS = {
       ng.currentTurnUid = nextTurnUid(ps, g.out || [], uid); ng.turnStartedAt = now();
       return { game: ng, ...touch() };
     });
-    if (input) input.value = "";
   },
   async type() {
     const input = $("x99TypeInput"), text = (input?.value || "").trim().replace(/\s+/g, " ");
@@ -1349,6 +1378,7 @@ const ACTIONS = {
     await ACTIONS.pick(text);
   },
   async pick(choice) {
+    S.nextOpts = { apply: !["dice", "coin"].includes(S.room?.game?.type) }; // 주사위·동전은 서버가 결과를 정해
     await roomTx((room, uid) => {
       const g = room.game;
       if (!g || g.status !== "playing" || !g.phase) throw new Error("아직 게임이 시작되지 않았어.");
@@ -1374,6 +1404,7 @@ const ACTIONS = {
   },
   // 시간 초과 처리 (같은 턴/단계에 대해 한 번만 적용돼)
   async expire(key) {
+    S.nextOpts = { apply: false };
     await roomTx((room, uid) => {
       const g = room.game;
       if (!g || g.status !== "playing" || gameKey(g) !== key) return null;
