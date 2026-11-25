@@ -40,7 +40,7 @@ input{width:100%;background:#fff;border:1px solid #d7dfeb;border-radius:9px;colo
    <button class="cyan" onclick="showMulti()">친구와 함께하기</button>
   </div>
  </div>
- <div class="stats"><span class="pill">총 99개 게임 · 3차 구현</span><span class="pill">혼자 하기 50개</span><span class="pill">친구와 함께하기 49개</span></div>
+ <div class="stats"><span class="pill">총 99개 게임 · 4차 구현</span><span class="pill">혼자 하기 50개</span><span class="pill">친구와 함께하기 49개</span></div>
  <div class="section-head"><div><h2>오늘의 추천</h2><p>바로 플레이할 수 있는 게임</p></div></div>
  <div class="grid" id="featured"></div>
 </section>
@@ -107,7 +107,7 @@ const multiNames=[
    솔로 게임: SOLO[번호] = ({stage, help, say}) => 정리 함수(선택)
    새 게임을 추가하려면 SOLO[번호]=... 한 블록만 추가하면 카드가 자동으로 '플레이 가능'이 돼. */
 const SOLO={};
-const MULTI_READY=new Set([0,1,2,3,5,6,7,9,18,20,22,33,39,43,47]); // 멀티 게임 번호(0부터)
+const MULTI_READY=new Set([0,1,2,3,5,6,7,9,14,16,18,20,22,23,26,27,29,32,33,38,39,43,44,46,47,48]); // 멀티 게임 번호(0부터)
 
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 
@@ -588,6 +588,222 @@ SOLO[43]=({stage,help,say})=>{
  return()=>timers.forEach(t=>{clearInterval(t);clearTimeout(t)});
 };
 
+/* ===== 4차 신규 솔로 게임 ===== */
+
+/* 22 얼음 깨기 */
+SOLO[22]=({stage,help,say})=>{
+ help.textContent='25초 동안 나타나는 얼음을 눌러 깨! 단단한 🧊은 2번(2점), 작은 ❄️은 1번(1점) 눌러야 해. 늦으면 녹아 버려.';
+ stage.innerHTML=startBtn('icStart');let timer=null;
+ stage.querySelector('#icStart').onclick=()=>{
+  stage.innerHTML=`<div class="timer-readout" id="icInfo"></div><div id="icGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:320px;margin:10px auto 0"></div>`;
+  const grid=stage.querySelector('#icGrid'),info=stage.querySelector('#icInfo');let score=0,t=0;
+  const cells=Array.from({length:9},()=>({hp:0,exp:0}));
+  const btns=cells.map((c,i)=>{const b=document.createElement('button');b.style.cssText='aspect-ratio:1;font-size:34px;padding:0;transform:none;background:#e4efff';
+   b.onclick=()=>{if(t>=25000||!c.hp)return;c.hp--;if(c.hp===0){score+=c.pts;c.exp=0}paint()};grid.appendChild(b);return b});
+  const paint=()=>{cells.forEach((c,i)=>{btns[i].textContent=c.hp===2?'🧊':c.hp===1?(c.pts===2?'🧊':'❄️'):'';btns[i].style.background=c.hp?'#aebfd5':'#e4efff'});info.textContent=`점수 ${score} · ${Math.max(0,Math.ceil((25000-t)/1000))}초`};
+  timer=setInterval(()=>{t+=100;
+   cells.forEach(c=>{if(c.hp&&t>c.exp)c.hp=0});
+   if(t%700===0){const empty=cells.filter(c=>!c.hp);if(empty.length){const c=empty[Math.floor(Math.random()*empty.length)],hard=Math.random()<.4;c.hp=hard?2:1;c.pts=hard?2:1;c.exp=t+1700}}
+   paint();
+   if(t>=25000){clearInterval(timer);say(`끝! ${score}점! ${score>=30?'얼음 파괴왕!':score>=18?'잘했어!':'한 번 더 도전해 봐!'}`)}},100);
+  paint();
+ };
+ return()=>clearInterval(timer);
+};
+
+/* 23 상자 쌓기 */
+SOLO[23]=({stage,help,say})=>{
+ help.textContent='움직이는 상자가 아래 상자 위에 오도록 타이밍 맞춰 눌러서 최대한 높이 쌓아! (화면 터치·스페이스바·버튼)';
+ stage.innerHTML=`<div class="timer-readout" id="skInfo">0층</div><canvas id="skCanvas" width="300" height="420" style="max-width:100%;background:#17283d;border-radius:10px;touch-action:manipulation;margin-top:8px"></canvas><p><button class="primary" id="skBtn" style="font-size:18px;padding:14px 26px">쌓기!</button></p>`;
+ const c=stage.querySelector('#skCanvas'),ctx=c.getContext('2d'),W=300,H=420,BH=22;
+ let layers=[{x:80,w:140}],cur={x:0,w:140,dir:1},speed=2.2,over=false;
+ const place=()=>{if(over)return;const prev=layers[layers.length-1],left=Math.max(prev.x,cur.x),right=Math.min(prev.x+prev.w,cur.x+cur.w),ov=right-left;
+  if(ov<=0){over=true;say(`무너졌어! ${layers.length-1}층 쌓았어. ${layers.length-1>=15?'건축가네!':''}`);return}
+  const perfect=Math.abs(cur.x-prev.x)<4;layers.push(perfect?{x:prev.x,w:prev.w}:{x:left,w:ov});
+  cur={x:0,w:layers[layers.length-1].w,dir:1};speed=Math.min(6,speed+.12);stage.querySelector('#skInfo').textContent=(layers.length-1)+'층'+(perfect?' · 퍼펙트!':'')};
+ stage.querySelector('#skBtn').onclick=place;c.addEventListener('pointerdown',place);
+ const key=e=>{if(e.code==='Space'){e.preventDefault();place()}};window.addEventListener('keydown',key);
+ const step=()=>{if(over)return;cur.x+=cur.dir*speed;if(cur.x<0){cur.x=0;cur.dir=1}if(cur.x+cur.w>W){cur.x=W-cur.w;cur.dir=-1}};
+ const draw=()=>{ctx.clearRect(0,0,W,H);const scroll=Math.max(0,(layers.length-10)*BH);
+  layers.forEach((l,i)=>{ctx.fillStyle=`hsl(${i*25+200},60%,60%)`;ctx.fillRect(l.x,H-30-(i+1)*BH+scroll,l.w,BH-2)});
+  if(!over){ctx.fillStyle=`hsl(${layers.length*25+200},60%,70%)`;ctx.fillRect(cur.x,H-30-(layers.length+1)*BH+scroll,cur.w,BH-2)}};
+ const stop=fixedLoop(step,draw);
+ return()=>{stop();window.removeEventListener('keydown',key)};
+};
+
+/* 29 마법 숫자 */
+SOLO[29]=({stage,help,say})=>{
+ help.textContent='1~63 중 숫자 하나를 마음속으로 정해 봐! 카드에 그 숫자가 있으면 "있어", 없으면 "없어"를 눌러. 마법사가 맞혀 볼게!';
+ const bits=[1,2,4,8,16,32];let i=0,sum=0;
+ const show=()=>{if(i>=bits.length){stage.innerHTML=`<div class="big">🪄</div><div class="big">네가 생각한 숫자는 ${sum}!</div>`;say(sum?'맞혔지? 😎':'0은 안 되는데? 1~63이야!');return}
+  const nums=[];for(let n=1;n<64;n++)if(n&bits[i])nums.push(n);
+  stage.innerHTML=`<p class="notice">카드 ${i+1} / ${bits.length}</p><div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;max-width:360px;margin:10px auto;font-weight:800">${nums.map(n=>`<span style="background:#fff;border:1px solid #dce4ef;border-radius:8px;padding:6px 0">${n}</span>`).join('')}</div><p><button class="primary" id="mgYes">있어</button> <button class="ghost" id="mgNo">없어</button></p>`;
+  stage.querySelector('#mgYes').onclick=()=>{sum+=bits[i];i++;show()};stage.querySelector('#mgNo').onclick=()=>{i++;show()}};
+ show();
+};
+
+/* 32 숨은 그림 */
+SOLO[32]=({stage,help,say})=>{
+ help.textContent='30초 동안 비슷한 그림 속에서 다른 그림 하나를 찾아 눌러! 틀리면 3초가 줄어들어.';
+ const pairs=[['🍎','🍏'],['😀','😃'],['🐶','🐕'],['🌕','🌝'],['🍊','🍋'],['⭐','🌟'],['🐱','🐈'],['🦊','🐺'],['🌹','🌷'],['🚗','🚙']];
+ stage.innerHTML=startBtn('hdStart');let score=0,endAt=0,timer=null,over=false;
+ const upd=()=>{const el=stage.querySelector('#hdInfo');if(el)el.textContent=`점수 ${score} · ${Math.max(0,Math.ceil((endAt-performance.now())/1000))}초`};
+ const render=()=>{const n=Math.min(8,3+Math.floor(score/2)),pr=pairs[Math.floor(Math.random()*pairs.length)],flip=Math.random()<.5,[a,b]=flip?[pr[1],pr[0]]:pr,k=Math.floor(Math.random()*n*n),g=stage.querySelector('#hdGrid');
+  g.style.gridTemplateColumns=`repeat(${n},1fr)`;g.innerHTML='';
+  for(let i=0;i<n*n;i++){const bt=document.createElement('button');bt.textContent=i===k?b:a;bt.style.cssText=`aspect-ratio:1;padding:0;min-width:0;font-size:${Math.max(18,34-n*2)}px;background:#fff;border:1px solid #dce4ef;transform:none`;bt.onclick=()=>{if(over)return;if(i===k){score++;render()}else endAt-=3000;upd()};g.appendChild(bt)}};
+ stage.querySelector('#hdStart').onclick=()=>{
+  stage.innerHTML=`<div class="timer-readout" id="hdInfo"></div><div id="hdGrid" style="display:grid;gap:4px;max-width:360px;margin:12px auto 0"></div>`;
+  score=0;over=false;endAt=performance.now()+30000;render();upd();
+  timer=setInterval(()=>{upd();if(performance.now()>=endAt){clearInterval(timer);over=true;say(`끝! ${score}단계 통과! ${score>=12?'눈썰미 최고!':score>=7?'눈이 좋은데?':'한 번 더 도전해 봐!'}`)}},250);
+ };
+ return()=>clearInterval(timer);
+};
+
+/* 34 점프 챌린지 */
+SOLO[34]=({stage,help,say})=>{
+ help.textContent='달리는 캐릭터가 장애물을 넘도록 화면을 누르거나 스페이스바·위쪽 방향키로 점프해!';
+ stage.innerHTML=`<div class="timer-readout" id="jpScore">0점</div><canvas id="jpCanvas" width="360" height="200" style="max-width:100%;background:#eaf3ff;border-radius:10px;touch-action:manipulation;margin-top:8px"></canvas>`;
+ const c=stage.querySelector('#jpCanvas'),ctx=c.getContext('2d'),W=360,G=165;
+ let y=G,vy=0,obs=[],t=0,next=70,over=false;
+ const jump=()=>{if(y>=G&&!over)vy=-11};
+ c.addEventListener('pointerdown',jump);
+ const key=e=>{if(e.code==='Space'||e.key==='ArrowUp'){e.preventDefault();jump()}};window.addEventListener('keydown',key);
+ const step=()=>{if(over)return;t++;vy+=.65;y=Math.min(G,y+vy);if(y>=G)vy=0;
+  const sp=4.2+t/1500;if(--next<=0){obs.push({x:W+10,w:16+Math.random()*14,h:22+Math.random()*22});next=Math.max(38,70+Math.random()*60-t/40)}
+  obs.forEach(o=>o.x-=sp);obs=obs.filter(o=>o.x+o.w>-10);
+  stage.querySelector('#jpScore').textContent=Math.floor(t/6)+'점';
+  if(obs.some(o=>50+12>o.x&&50-12<o.x+o.w&&y>G-o.h)){over=true;say(`부딪혔어! ${Math.floor(t/6)}점 ${t/6>=150?'· 점프 달인!':''}`)}};
+ const draw=()=>{ctx.clearRect(0,0,W,200);ctx.fillStyle='#aebfd5';ctx.fillRect(0,G+2,W,4);ctx.fillStyle='#40536b';obs.forEach(o=>ctx.fillRect(o.x,G+2-o.h,o.w,o.h));ctx.font='28px sans-serif';ctx.textAlign='center';ctx.fillText(over?'😵':'🏃',50,y+2)};
+ const stop=fixedLoop(step,draw);
+ return()=>{stop();window.removeEventListener('keydown',key)};
+};
+
+/* 35 신호등 게임 */
+SOLO[35]=({stage,help,say})=>{
+ help.textContent='초록불일 때만 "달려!"를 눌러 +1점! 빨간불에 누르면 -2점. 노란불은 곧 바뀐다는 신호야. 25초 승부!';
+ stage.innerHTML=startBtn('tlStart');let timer=null;
+ stage.querySelector('#tlStart').onclick=()=>{
+  stage.innerHTML=`<div class="timer-readout" id="tlInfo"></div><div id="tlLight" style="width:120px;height:120px;border-radius:50%;margin:14px auto;background:#df6c6c;border:4px solid #26364b"></div><button class="primary" id="tlBtn" style="width:100%;height:100px;font-size:24px">달려!</button>`;
+  const light=stage.querySelector('#tlLight'),info=stage.querySelector('#tlInfo');let state='red',left=1200,score=0,t=0;
+  const col={red:'#df6c6c',yellow:'#e9c34d',green:'#58a978'};
+  const upd=()=>info.textContent=`점수 ${score} · ${Math.max(0,Math.ceil((25000-t)/1000))}초`;
+  stage.querySelector('#tlBtn').onclick=()=>{if(t>=25000)return;if(state==='green')score++;else if(state==='red')score=Math.max(0,score-2);upd()};
+  timer=setInterval(()=>{t+=50;left-=50;
+   if(left<=0){if(state==='red'){state='yellow';left=500}else if(state==='yellow'){state='green';left=700+Math.random()*900}else{state='red';left=900+Math.random()*900}light.style.background=col[state]}
+   upd();if(t>=25000){clearInterval(timer);stage.querySelector('#tlBtn').disabled=true;say(`끝! ${score}점! ${score>=15?'신호 마스터!':score>=8?'잘했어!':'한 번 더 도전해 봐!'}`)}},50);
+  upd();
+ };
+ return()=>clearInterval(timer);
+};
+
+/* 37 연 날리기 */
+SOLO[37]=({stage,help,say})=>{
+ help.textContent='화면을 누르면 연이 위로 올라가! 기둥 사이 빈틈을 통과해서 최대한 멀리 날려 봐. (스페이스바도 돼)';
+ stage.innerHTML=`<div class="timer-readout" id="kiScore">0점</div><canvas id="kiCanvas" width="320" height="420" style="max-width:100%;background:linear-gradient(#cfe6ff,#f7fbff);border-radius:10px;touch-action:manipulation;margin-top:8px"></canvas>`;
+ const c=stage.querySelector('#kiCanvas'),ctx=c.getContext('2d'),W=320,H=420,GAP=140;
+ let y=200,vy=0,pipes=[],t=0,score=0,over=false;
+ const flap=()=>{if(!over)vy=-6};c.addEventListener('pointerdown',flap);
+ const key=e=>{if(e.code==='Space'){e.preventDefault();flap()}};window.addEventListener('keydown',key);
+ const step=()=>{if(over)return;t++;vy+=.35;y+=vy;
+  if(t%90===1)pipes.push({x:W+10,gy:90+Math.random()*(H-90-GAP-60),passed:false});
+  pipes.forEach(p=>{p.x-=2.4;if(!p.passed&&p.x+46<80){p.passed=true;score++;stage.querySelector('#kiScore').textContent=score+'점'}});
+  pipes=pipes.filter(p=>p.x>-60);
+  const hit=y<10||y>H-10||pipes.some(p=>80+12>p.x&&80-12<p.x+46&&(y-12<p.gy||y+12>p.gy+GAP));
+  if(hit){over=true;say(`추락! ${score}개 기둥을 통과했어. ${score>=10?'· 연 날리기 고수!':''}`)}};
+ const draw=()=>{ctx.clearRect(0,0,W,H);ctx.fillStyle='#6fc69b';pipes.forEach(p=>{ctx.fillRect(p.x,0,46,p.gy);ctx.fillRect(p.x,p.gy+GAP,46,H)});ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText(over?'💥':'🪁',80,y+10)};
+ const stop=fixedLoop(step,draw);
+ return()=>{stop();window.removeEventListener('keydown',key)};
+};
+
+/* 38 거품 터뜨리기 (뽁뽁이) */
+SOLO[38]=({stage,help,say})=>{
+ help.textContent='거품 36개를 전부 터뜨려! 첫 거품을 누르면 시간이 재기 시작해. 최대한 빨리!';
+ stage.innerHTML=`<div class="timer-readout" id="bbInfo">0/36 · 0.00초</div><div id="bbGrid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-width:340px;margin:12px auto 0"></div>`;
+ const grid=stage.querySelector('#bbGrid'),info=stage.querySelector('#bbInfo');let n=0,t0=null,timer=null;
+ for(let i=0;i<36;i++){const b=document.createElement('button');b.style.cssText='aspect-ratio:1;padding:0;border-radius:50%;border:2px solid #b7cbed;transform:none;background:radial-gradient(circle at 30% 30%,#fff,#cfe2ff 60%,#9fc2f5)';
+  b.onclick=()=>{if(b.disabled)return;if(t0===null){t0=performance.now();timer=setInterval(()=>{info.textContent=`${n}/36 · ${((performance.now()-t0)/1000).toFixed(2)}초`},50)}
+   b.disabled=true;b.style.opacity='.35';b.style.background='#dfe8f5';n++;info.textContent=`${n}/36 · ${((performance.now()-t0)/1000).toFixed(2)}초`;
+   if(n===36){clearInterval(timer);const s=(performance.now()-t0)/1000;say(`전부 터뜨렸어! 기록 ${s.toFixed(2)}초 ${s<15?'· 뽁뽁이 달인!':''}`)}};grid.appendChild(b)}
+ return()=>clearInterval(timer);
+};
+
+/* 40 탑 쌓기 (하노이의 탑) */
+SOLO[40]=({stage,help,say})=>{
+ help.textContent='원반을 한 번에 하나씩 옮겨 모두 오른쪽 기둥으로 보내! 큰 원반은 작은 원반 위에 올릴 수 없어. 기둥을 눌러 선택 → 옮길 기둥을 눌러.';
+ const N=4;let pegs=[[4,3,2,1],[],[]],sel=-1,moves=0,done=false;
+ stage.innerHTML=`<div id="hnGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:420px;margin:auto"></div><p id="hnInfo">이동 0회 (최소 15회)</p>`;
+ const grid=stage.querySelector('#hnGrid');
+ const draw=()=>{grid.innerHTML='';pegs.forEach((p,i)=>{const col=document.createElement('button');
+  col.style.cssText=`height:190px;display:flex;flex-direction:column-reverse;align-items:center;gap:3px;padding:6px 0;background:${sel===i?'#d8e8ff':'#f7f9fc'};border:2px solid ${sel===i?'#3976d7':'#d7dfeb'};transform:none`;
+  p.forEach(d=>{const x=document.createElement('div');x.style.cssText=`height:22px;width:${30+d*15}%;border-radius:8px;background:hsl(${d*55+190},60%,60%)`;col.appendChild(x)});
+  col.onclick=()=>click(i);grid.appendChild(col)});stage.querySelector('#hnInfo').textContent=`이동 ${moves}회 (최소 15회)`};
+ const click=i=>{if(done)return;
+  if(sel<0){if(pegs[i].length){sel=i;draw()}return}
+  if(i!==sel){const from=pegs[sel],to=pegs[i],d=from[from.length-1];if(!to.length||to[to.length-1]>d){to.push(from.pop());moves++;say('')}else say('큰 원반은 작은 원반 위에 올릴 수 없어!')}
+  sel=-1;draw();
+  if(pegs[2].length===N){done=true;say(`성공! ${moves}번 만에 옮겼어. ${moves===15?'완벽해! 최소 이동이야 🎉':''}`)}};
+ draw();
+};
+
+/* 44 인형 뽑기 */
+SOLO[44]=({stage,help,say})=>{
+ help.textContent='집게가 인형 위에 왔을 때 "내려가기"를 눌러! 기회는 3번이야. 점수가 높은 인형을 노려 봐.';
+ stage.innerHTML=`<div class="timer-readout" id="clInfo">점수 0 · 남은 기회 3</div><canvas id="clCanvas" width="320" height="360" style="max-width:100%;background:#f7f9fc;border:1px solid var(--line);border-radius:10px;margin-top:8px"></canvas><p><button class="primary" id="clBtn" style="font-size:18px;padding:14px 26px">내려가기</button></p>`;
+ const c=stage.querySelector('#clCanvas'),ctx=c.getContext('2d'),W=320,FLOOR=300,TOP=40;
+ const emo=['🧸','🐰','🐼','🦄','🐥','🐙'],vals=shuffle([1,1,2,2,3,5]);
+ let items=emo.map((e,i)=>({x:34+i*50,e,v:vals[i]})),cx=30,dir=1,cy=TOP,state='move',caught=null,score=0,tries=3,done=false;
+ const info=()=>stage.querySelector('#clInfo').textContent=`점수 ${score} · 남은 기회 ${tries}`;
+ stage.querySelector('#clBtn').onclick=()=>{if(state==='move'&&!done)state='down'};
+ const step=()=>{if(done)return;
+  if(state==='move'){cx+=dir*2.4;if(cx>W-20){cx=W-20;dir=-1}if(cx<20){cx=20;dir=1}}
+  else if(state==='down'){cy+=4;if(cy>=FLOOR-20){const it=items.filter(i=>Math.abs(i.x-cx)<18).sort((a,b)=>Math.abs(a.x-cx)-Math.abs(b.x-cx))[0];caught=it||null;state='up'}}
+  else if(state==='up'){cy-=4;if(cy<=TOP){cy=TOP;state='move';tries--;
+   if(caught){score+=caught.v;items=items.filter(i=>i!==caught);say(`${caught.e} 뽑았어! +${caught.v}점`)}else say('아쉽다! 빈 집게야...');caught=null;info();
+   if(tries<=0){done=true;say(`끝! 총 ${score}점. ${score>=6?'인형 뽑기 달인!':score>=3?'잘했어!':'한 번 더 도전해 봐!'}`)}}}};
+ const draw=()=>{ctx.clearRect(0,0,W,360);ctx.fillStyle='#d7dfeb';ctx.fillRect(0,FLOOR,W,60);ctx.font='28px sans-serif';ctx.textAlign='center';
+  items.forEach(i=>{ctx.fillText(i.e,i.x,FLOOR+6);ctx.font='12px sans-serif';ctx.fillStyle='#526176';ctx.fillText(i.v+'점',i.x,FLOOR+26);ctx.font='28px sans-serif'});
+  ctx.strokeStyle='#40536b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-14,cy+14);ctx.lineTo(cx,cy);ctx.lineTo(cx+14,cy+14);ctx.stroke();
+  if(caught)ctx.fillText(caught.e,cx,cy+34)};
+ const stop=fixedLoop(step,draw);
+ return stop;
+};
+
+/* 46 소리 기억 */
+SOLO[46]=({stage,help,say})=>{
+ help.textContent='소리를 잘 듣고(그리고 불빛을 보고) 같은 순서로 눌러! 소리를 켜 두면 더 쉬워. 라운드가 갈수록 길어져.';
+ const pads=[['도','#df6c6c',262],['미','#e9c34d',330],['솔','#58a978',392],['도↑','#5c8fd5',523]];
+ stage.innerHTML=`<div class="big" id="snLevel">레벨 1</div><div style="display:grid;grid-template-columns:repeat(2,110px);gap:8px;justify-content:center">${pads.map((p,j)=>`<button data-pad="${j}" style="height:100px;background:${p[1]};font-size:22px">${p[0]}</button>`).join('')}</div><p><button class="primary" id="snStart">시작</button></p>`;
+ let ac=null,seq=[],input=[],locked=true;const timers=[];const later=(f,ms)=>timers.push(setTimeout(f,ms));
+ const beep=f=>{try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.type='sine';g.gain.value=.2;o.connect(g);g.connect(ac.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.3);o.stop(ac.currentTime+.32)}catch(e){}};
+ const lvl=t=>stage.querySelector('#snLevel').textContent=t;
+ const flash=v=>{const b=stage.querySelector(`[data-pad="${v}"]`);b.style.filter='brightness(1.5)';beep(pads[v][2]);later(()=>b.style.filter='',280)};
+ const round=()=>{seq.push(Math.floor(Math.random()*4));input=[];locked=true;lvl('레벨 '+seq.length+' · 잘 들어봐!');seq.forEach((v,j)=>later(()=>flash(v),j*600+300));later(()=>{locked=false;lvl('레벨 '+seq.length+' · 이제 눌러봐!')},seq.length*600+300)};
+ stage.querySelector('#snStart').onclick=()=>{timers.forEach(clearTimeout);seq=[];say('');round()};
+ stage.querySelectorAll('[data-pad]').forEach(b=>b.onclick=()=>{
+  if(locked||!seq.length)return;const v=Number(b.dataset.pad);flash(v);input.push(v);
+  if(input[input.length-1]!==seq[input.length-1]){say('아쉽다! 레벨 '+seq.length+'에서 실패했어. 시작을 눌러 다시 해 봐.');seq=[];locked=true;return}
+  if(input.length===seq.length){locked=true;say('정확해! 다음 라운드로 가자.');later(()=>{say('');round()},900)}});
+ return()=>{timers.forEach(clearTimeout);try{ac&&ac.close()}catch(e){}};
+};
+
+/* 48 낙하 조절 */
+SOLO[48]=({stage,help,say})=>{
+ help.textContent='우주선이 떨어지고 있어! 화면을 꾹 누르거나 스페이스바를 누르면 엔진이 켜져(연료 한정). 속도 2 이하로 착륙하면 성공!';
+ stage.innerHTML=`<div class="timer-readout" id="ldInfo"></div><canvas id="ldCanvas" width="300" height="420" style="max-width:100%;background:#0f1d33;border-radius:10px;touch-action:none;margin-top:8px"></canvas>`;
+ const c=stage.querySelector('#ldCanvas'),ctx=c.getContext('2d'),W=300,H=420,GROUND=H-36;
+ let y=30,vy=0,fuel=100,thrust=false,over=false;const info=stage.querySelector('#ldInfo');
+ const on=()=>{thrust=true},off=()=>{thrust=false};
+ c.addEventListener('pointerdown',on);window.addEventListener('pointerup',off);
+ const kd=e=>{if(e.code==='Space'){e.preventDefault();on()}},ku=e=>{if(e.code==='Space')off()};window.addEventListener('keydown',kd);window.addEventListener('keyup',ku);
+ const step=()=>{if(over)return;vy+=.06;if(thrust&&fuel>0){vy-=.16;fuel=Math.max(0,fuel-.5)}y+=vy;
+  info.textContent=`속도 ${Math.max(0,vy).toFixed(1)} · 연료 ${Math.round(fuel)}`;
+  if(y>=GROUND){over=true;y=GROUND;if(vy<=2)say(`착륙 성공! 🎉 속도 ${vy.toFixed(1)}, 연료 ${Math.round(fuel)} 남았어.`);else say(`추락... 속도 ${vy.toFixed(1)}였어. 속도를 2 이하로 줄여 봐!`)}};
+ const draw=()=>{ctx.clearRect(0,0,W,H);ctx.fillStyle='#8c9bb0';ctx.fillRect(0,GROUND+14,W,H);ctx.fillStyle='#6fc69b';ctx.fillRect(W/2-40,GROUND+12,80,4);ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText(over&&vy>2?'💥':'🚀',W/2,y);if(thrust&&fuel>0&&!over){ctx.fillText('🔥',W/2,y+28)}};
+ const stop=fixedLoop(step,draw);
+ return()=>{stop();window.removeEventListener('pointerup',off);window.removeEventListener('keydown',kd);window.removeEventListener('keyup',ku)};
+};
+
+
 /* ---------- 멀티 화면 껍데기 ---------- */
 const MULTI_INFO={
  0:['방에 연결한 친구들과 차례대로 단어를 이어 가자!','모드: 기본 끝말잇기 · 초성 퀴즈 · 스피드 단어 · 연상 단어 / 턴 제한 15초 / 두음법칙 적용'],
@@ -604,7 +820,18 @@ const MULTI_INFO={
  33:['동전의 앞면과 뒷면 중 어느 쪽이 나올지 맞혀 봐!','7라운드 · 라운드당 8초'],
  39:['과학 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초'],
  43:['세계 나라의 수도를 맞혀 봐! 8문제.','문제당 14초'],
- 47:['우주에 대한 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초']
+ 47:['우주에 대한 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초'],
+ 14:['1~9 숫자를 순서대로 가장 빨리 누르는 사람이 승리!','3라운드 · 기록 대결'],
+ 16:['8초 동안 버튼을 가장 많이 누른 사람이 승리!','3라운드'],
+ 23:['음식 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초'],
+ 26:['스포츠 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초'],
+ 27:['계산 문제를 가장 정확하고 빠르게 풀어 봐!','6문제 · 문제당 15초'],
+ 29:['초록색이 되면 가장 빨리 눌러! 일찍 누르면 벌점.','4라운드'],
+ 32:['0~100 중 숫자를 골라! 평균의 2/3에 가장 가까운 사람이 승리.','4라운드 · 라운드당 20초'],
+ 38:['정확히 10초를 맞혀 봐! 가장 가까운 사람이 승리.','3라운드'],
+ 44:['공룡 퀴즈 8문제! 보기 중 정답을 골라 봐.','문제당 14초'],
+ 46:['알파벳을 밀어서 만든 암호를 풀어 봐!','5문제 · 문제당 30초'],
+ 48:['여러 분야 퀴즈가 섞인 종합 대결!','12문제 · 문제당 14초']
 };
 function copyCode(){
  const code=(window.X99.code||document.getElementById('roomCode').textContent).trim();
@@ -620,7 +847,7 @@ function renderX99MultiGame(i){
  }else if(!window.X99.code){
   box.innerHTML=`${title}<p>${info[0]}</p><p class="notice">먼저 위에서 방을 만들거나 참가해 줘. 방에서 방장이 게임을 고르면 모두 같은 화면으로 이동해!</p>`;
  }else{
-  box.innerHTML=`${title}<p>${info[0]}</p><div class="gamebox" id="mgBody"></div><div class="result" id="mgMsg" aria-live="polite"></div><p class="notice">${info[1]}</p>`;
+  box.innerHTML=`${title}<p>${info[0]}</p><div class="gamebox" id="mgBody"></div><div class="gamebox" id="mgLocal" style="display:none"></div><div class="result" id="mgMsg" aria-live="polite"></div><p class="notice">${info[1]}</p>`;
   if(window.x99Render)window.x99Render();
  }
  box.scrollIntoView({behavior:'smooth',block:'center'});
@@ -758,6 +985,7 @@ function showRoomUI(room) {
 function resetRoomUI(text) {
   if (unsubRoom) { unsubRoom(); unsubRoom = null; }
   if (unsubChat) { unsubChat(); unsubChat = null; }
+  if (window.x99StopLocal) window.x99StopLocal();
   S.code = null; S.room = null; S.syncKey = null; S.optAt = 0; S.latest = null;
   $("roomPanel").classList.add("hidden");
   $("roomEntry").classList.remove("hidden");
@@ -1108,20 +1336,97 @@ const LOBBY_DESC = {
   43: "세계 나라의 수도를 맞혀 봐! 8문제.",
   47: "우주에 대한 퀴즈 8문제! 보기 중 정답을 골라 봐."
 };
+QUIZ.food = [
+  { q: "김치의 가장 대표적인 주재료는?", c: ["배추", "오이", "감자", "양파"], a: 0 },
+  { q: "비빔밥의 '비빔'은 어떤 뜻일까?", c: ["섞다", "굽다", "끓이다", "튀기다"], a: 0 },
+  { q: "피자의 본고장으로 유명한 이탈리아 도시는?", c: ["나폴리", "밀라노", "베네치아", "토리노"], a: 0 },
+  { q: "초밥(스시)은 어느 나라의 대표 음식일까?", c: ["중국", "일본", "태국", "베트남"], a: 1 },
+  { q: "치즈는 무엇으로 만들까?", c: ["콩", "우유", "밀가루", "달걀"], a: 1 },
+  { q: "두부의 주원료는?", c: ["콩", "쌀", "보리", "옥수수"], a: 0 },
+  { q: "설날에 먹는 대표 음식은?", c: ["송편", "떡국", "팥죽", "부럼"], a: 1 },
+  { q: "추석에 먹는 대표 음식은?", c: ["송편", "떡국", "수제비", "화전"], a: 0 },
+  { q: "케첩의 주재료는?", c: ["토마토", "딸기", "당근", "고추"], a: 0 }
+];
+QUIZ.sport = [
+  { q: "야구에서 수비할 때 한 팀이 필드에 세우는 선수는 몇 명일까?", c: ["7명", "8명", "9명", "10명"], a: 2 },
+  { q: "농구에서 코트에 나가는 한 팀의 선수는 몇 명일까?", c: ["4명", "5명", "6명", "7명"], a: 1 },
+  { q: "배구에서 코트에 나가는 한 팀의 선수는 몇 명일까?", c: ["5명", "6명", "7명", "8명"], a: 1 },
+  { q: "마라톤의 공식 거리는?", c: ["21.0975km", "42.195km", "50km", "100km"], a: 1 },
+  { q: "골프 정규 라운드는 몇 홀일까?", c: ["9홀", "12홀", "18홀", "24홀"], a: 2 },
+  { q: "다음 중 수영의 공식 영법이 아닌 것은?", c: ["자유형", "배영", "평영", "횡영"], a: 3 },
+  { q: "테니스에서 0점을 부르는 말은?", c: ["러브", "제로", "널", "오"], a: 0 },
+  { q: "올림픽 오륜기의 고리는 모두 몇 개일까?", c: ["4개", "5개", "6개", "7개"], a: 1 },
+  { q: "태권도는 어느 나라에서 시작된 무술일까?", c: ["한국", "일본", "중국", "태국"], a: 0 }
+];
+QUIZ.dino = [
+  { q: "티라노사우루스의 식성은?", c: ["육식", "초식", "잡식", "곤충식"], a: 0 },
+  { q: "공룡이 살았던 지질 시대는?", c: ["고생대", "중생대", "신생대", "선캄브리아시대"], a: 1 },
+  { q: "목이 아주 길고 풀을 먹던 공룡은?", c: ["브라키오사우루스", "티라노사우루스", "벨로키랍토르", "스피노사우루스"], a: 0 },
+  { q: "머리에 뿔이 세 개 달린 공룡은?", c: ["트리케라톱스", "스테고사우루스", "안킬로사우루스", "프테라노돈"], a: 0 },
+  { q: "등에 골판이 있고 꼬리에 가시가 있는 공룡은?", c: ["스테고사우루스", "트리케라톱스", "티라노사우루스", "디플로도쿠스"], a: 0 },
+  { q: "오늘날 공룡의 후손으로 여겨지는 동물은?", c: ["새", "악어", "도마뱀", "거북"], a: 0 },
+  { q: "공룡이 멸종한 것은 약 언제일까?", c: ["약 6600만 년 전", "약 6600년 전", "약 6억 년 전", "약 66만 년 전"], a: 0 },
+  { q: "공룡이 멸종한 뒤 오늘날까지 이어지는 지질 시대는?", c: ["신생대", "고생대", "선캄브리아시대", "트라이아스기"], a: 0 }
+];
+Object.assign(QUIZ_NAMES, { food: "음식 퀴즈", sport: "스포츠 퀴즈", dino: "공룡 퀴즈" });
+Object.assign(LOBBY_DESC, {
+  14: "1~9 숫자 버튼을 순서대로 가장 빨리 누르는 사람이 승리! 3라운드, 각자 기록을 겨뤄.",
+  16: "8초 동안 버튼을 가장 많이 누른 사람이 승리! 3라운드.",
+  23: "음식에 대한 퀴즈 8문제! 보기 중 정답을 골라 봐.",
+  26: "스포츠 퀴즈 8문제! 보기 중 정답을 골라 봐.",
+  27: "계산 문제를 정확히 풀어 봐! 맞힌 사람은 1점, 가장 빠른 사람은 +1점 보너스. 6문제.",
+  29: "화면이 초록색이 되면 가장 빨리 눌러! 일찍 누르면 벌점이야. 4라운드.",
+  32: "0~100 중 숫자를 골라 봐. 모두 고른 숫자의 평균의 2/3에 가장 가까운 사람이 승리! 4라운드.",
+  38: "마음속으로 정확히 10초를 세고 멈춰! 10초에 가장 가까운 사람이 승리. 3라운드.",
+  44: "공룡 퀴즈 8문제! 보기 중 정답을 골라 봐.",
+  46: "알파벳을 몇 칸씩 밀어서 만든 암호야. 원래 영어 단어를 입력해! 5문제, 가장 빠른 사람은 +1점.",
+  48: "여러 분야의 퀴즈가 섞여 나오는 종합 대결! 12문제."
+});
+Object.assign(REVEAL_BY, { race: 3500, guess: 4000, cipher: 3000, calc: 2500 });
+
 function quizItem(g, r) {
   const e = g.qs[r], it = QUIZ[e.c][e.i], order = [...e.p].map(Number);
   return { q: it.q, choices: order.map(k => it.c[k]), pos: order.indexOf(it.a), e: it.e || "" };
+}
+const TYPED = new Set(["typing", "cipher", "calc"]); // 정답을 직접 입력하는 게임
+const typedTarget = g => g.type === "typing" ? TYPING[g.qs[g.round]] : g.type === "cipher" ? g.qs[g.round].w : g.qs[g.round].a;
+const RACE_NAMES = { seq: "숫자 순서", tap: "레이스 대결", react: "순발력 대결", time: "시간 추측" };
+const CIPHER_WORDS = ["CAT", "DOG", "FISH", "BIRD", "STAR", "MOON", "TREE", "RAIN", "BOOK", "CAKE", "SNOW", "WIND", "BLUE", "GAME"];
+const caesar = (w, k) => [...w].map(ch => String.fromCharCode(65 + (ch.charCodeAt(0) - 65 + k) % 26)).join("");
+function genCalc() {
+  const op = ["+", "-", "×"][Math.floor(Math.random() * 3)];
+  let a, b, r;
+  if (op === "+") { a = 10 + Math.floor(Math.random() * 90); b = 10 + Math.floor(Math.random() * 90); r = a + b; }
+  else if (op === "-") { a = 20 + Math.floor(Math.random() * 80); b = 10 + Math.floor(Math.random() * (a - 9)); r = a - b; }
+  else { a = 2 + Math.floor(Math.random() * 8); b = 2 + Math.floor(Math.random() * 11); r = a * b; }
+  return { q: `${a} ${op} ${b}`, a: String(r) };
 }
 function makeRound(room, type, opts = {}) {
   const o = { round: 0, phase: "answer", roundStartedAt: now(), answers: {}, answerAt: {}, lastResult: null };
   if (type === "ox") return baseGame(room, "ox", { ...o, total: 7, roundLimit: 12000, qs: shuffle([...OX_BANK.keys()]).slice(0, 7) });
   if (type === "quiz") {
-    const cats = opts.cat === "mix" ? Object.keys(QUIZ) : [opts.cat], pool = [];
+    const cats = opts.cat === "mix" ? Object.keys(QUIZ) : [opts.cat], pool = [], total = opts.total || 8;
     cats.forEach(c => QUIZ[c].forEach((_, i) => pool.push({ c, i })));
-    const qs = shuffle(pool).slice(0, 8).map(x => ({ ...x, p: shuffle([0, 1, 2, 3]).join("") }));
-    return baseGame(room, "quiz", { ...o, total: 8, roundLimit: opts.speed ? 9000 : 14000, cat: opts.cat, speed: !!opts.speed, qs });
+    const qs = shuffle(pool).slice(0, total).map(x => ({ ...x, p: shuffle([0, 1, 2, 3]).join("") }));
+    return baseGame(room, "quiz", { ...o, total, roundLimit: opts.speed ? 9000 : 14000, cat: opts.cat, speed: !!opts.speed, qs });
   }
   if (type === "typing") return baseGame(room, "typing", { ...o, total: 5, roundLimit: 25000, qs: shuffle([...TYPING.keys()]).slice(0, 5) });
+  if (type === "cipher") {
+    const qs = shuffle(CIPHER_WORDS).slice(0, 5).map(w => { const k = 1 + Math.floor(Math.random() * 5); return { w, k, d: caesar(w, k) }; });
+    return baseGame(room, "cipher", { ...o, total: 5, roundLimit: 30000, qs });
+  }
+  if (type === "calc") return baseGame(room, "calc", { ...o, total: 6, roundLimit: 15000, qs: Array.from({ length: 6 }, genCalc) });
+  if (type === "guess") return baseGame(room, "guess", { ...o, total: 4, roundLimit: 20000 });
+  if (type === "race") {
+    const mode = opts.mode;
+    const cfg = {
+      seq: { total: 3, limit: 40000, qs: () => shuffle(["1", "2", "3", "4", "5", "6", "7", "8", "9"]).join("") },
+      tap: { total: 3, limit: 25000, qs: () => 0 },
+      react: { total: 4, limit: 25000, qs: () => 1500 + Math.floor(Math.random() * 3000) },
+      time: { total: 3, limit: 40000, qs: () => 0 }
+    }[mode];
+    return baseGame(room, "race", { ...o, mode, total: cfg.total, roundLimit: cfg.limit, qs: Array.from({ length: cfg.total }, cfg.qs) });
+  }
   if (type === "dice") return baseGame(room, "dice", { ...o, total: 5, roundLimit: 10000 });
   if (type === "coin") return baseGame(room, "coin", { ...o, total: 7, roundLimit: 8000 });
   return baseGame(room, "rps", { ...o, total: 5, roundLimit: 8000 });
@@ -1131,6 +1436,7 @@ function revealRound(g, room) {
   ps.forEach(p => { const v = g.answers?.[p.uid]; if (v !== undefined && v !== "") picks[p.uid] = v; });
   const scores = { ...(g.scores || {}) };
   const firstOf = ids => ids.slice().sort((a, b) => (g.answerAt?.[a] || 0) - (g.answerAt?.[b] || 0))[0] || null;
+  const nums = () => ps.filter(p => picks[p.uid] !== undefined).map(p => ({ u: p.uid, v: Number(picks[p.uid]) }));
   let winners = [], extra = {}, bonus = null;
   if (g.type === "ox") {
     const c = OX_BANK[g.qs[g.round]].a;
@@ -1141,10 +1447,24 @@ function revealRound(g, room) {
     winners = ps.filter(p => picks[p.uid] === pos).map(p => p.uid);
     extra = { correct: pos };
     if (g.speed) bonus = firstOf(winners);
-  } else if (g.type === "typing") {
-    const t = TYPING[g.qs[g.round]];
+  } else if (TYPED.has(g.type)) {
+    const t = typedTarget(g);
     winners = ps.filter(p => picks[p.uid] === t).map(p => p.uid);
     bonus = firstOf(winners);
+  } else if (g.type === "race") {
+    const vals = nums();
+    if (vals.length) {
+      const best = g.mode === "tap" ? Math.max(...vals.map(x => x.v)) : Math.min(...vals.map(x => x.v));
+      winners = vals.filter(x => x.v === best).map(x => x.u);
+    }
+  } else if (g.type === "guess") {
+    const vals = nums();
+    if (vals.length) {
+      const avg = vals.reduce((s, x) => s + x.v, 0) / vals.length, target = Math.round(avg * 2 / 3 * 10) / 10;
+      const d = Math.min(...vals.map(x => Math.abs(x.v - target)));
+      winners = vals.filter(x => Math.abs(x.v - target) === d).map(x => x.u);
+      extra = { avg: Math.round(avg * 10) / 10, target };
+    } else extra = { avg: null, target: null };
   } else if (g.type === "dice") {
     const sums = {};
     ps.forEach(p => { if (picks[p.uid]) { const [a, b] = picks[p.uid].split(",").map(Number); sums[p.uid] = a + b; } });
@@ -1217,32 +1537,45 @@ function renderRound(room, type) {
   const g = room.game;
   if (!g || g.type !== type) return lobby(room, LOBBY_DESC[room.selectedGame] || "");
   if (g.status === "finished") return finishedHtml(room, g);
-  const ps = players(room), me = ps.some(p => p.uid === S.uid), myPick = g.answers?.[S.uid];
-  const head = `<h3>${type === "quiz" ? (QUIZ_NAMES[g.cat] || "퀴즈") + " · " : ""}${g.round + 1} / ${g.total} 라운드</h3>`;
+  const ps = players(room), me = ps.some(p => p.uid === S.uid), myPick = g.answers?.[S.uid], typed = TYPED.has(type);
+  const title = type === "quiz" ? (g.cat === "mix" ? (g.speed ? "스피드 퀴즈" : "종합 대결") : (QUIZ_NAMES[g.cat] || "퀴즈")) + " · "
+    : type === "race" ? RACE_NAMES[g.mode] + " · " : type === "guess" ? "목표 숫자 · " : type === "cipher" ? "암호 풀기 · " : type === "calc" ? "계산 대결 · " : "";
+  const head = `<h3>${title}${g.round + 1} / ${g.total} 라운드</h3>`;
   const it = type === "quiz" ? quizItem(g, g.round) : null;
+  const raceLabel = v => g.mode === "tap" ? `${v}회` : g.mode === "time" ? `오차 ${(v / 1000).toFixed(2)}초` : `${(v / 1000).toFixed(2)}초`;
   const label = v => {
     if (type === "ox") return v === "O" ? "⭕" : "❌";
     if (type === "rps") return RPS[v][0];
     if (type === "coin") return v === "H" ? "🪙 앞면" : "🌑 뒷면";
     if (type === "quiz") return esc(it.choices[Number(v)]);
     if (type === "dice") { const [a, b] = String(v).split(","); return `🎲 ${a}+${b}=${Number(a) + Number(b)}`; }
-    return "✅ 입력 완료";
+    if (type === "race") return "⏱️ " + raceLabel(Number(v));
+    if (type === "guess") return "🔢 " + esc(v);
+    return "✅ 정답";
   };
-  const bonusNote = (g.speed || type === "typing") ? '<p class="notice">⚡ 가장 빨리 맞힌 사람은 +1점 보너스!</p>' : "";
+  const bonusNote = (g.speed || typed) ? '<p class="notice">⚡ 가장 빨리 맞힌 사람은 +1점 보너스!</p>' : "";
   if (g.phase === "answer") {
     const done = ps.filter(p => g.answers?.[p.uid]).length, off = (!me || myPick) ? "disabled" : "";
     const btn = (v, text, style = "") => `<button class="${myPick === v ? "picked" : ""}" style="${style}" ${off} onclick="x99Do('pick','${v}')">${text}</button>`;
-    let q = "", opts = "";
-    if (type === "ox") { q = `<p class="big" style="font-size:26px;line-height:1.4">${esc(OX_BANK[g.qs[g.round]].q)}</p>`; opts = btn("O", "⭕") + btn("X", "❌"); }
-    else if (type === "rps") { q = '<p class="notice">가위·바위·보 중 하나를 골라!</p>'; opts = ["scissors", "rock", "paper"].map(v => btn(v, RPS[v][0])).join(""); }
-    else if (type === "coin") { q = '<p class="notice">동전을 던질 거야. 앞면일까 뒷면일까?</p>'; opts = btn("H", "🪙 앞면", "font-size:20px") + btn("T", "🌑 뒷면", "font-size:20px"); }
-    else if (type === "quiz") { q = `<p class="big" style="font-size:24px;line-height:1.4">${esc(it.q)}</p>`; opts = it.choices.map((t, i) => btn(String(i), `${["①", "②", "③", "④"][i]} ${esc(t)}`, "font-size:16px;min-width:140px")).join(""); }
-    else if (type === "dice") { q = '<p class="notice">주사위 2개를 굴려 합이 가장 큰 사람이 1점!</p>'; opts = `<button ${off} onclick="x99Do('pick','roll')" style="font-size:22px">🎲 굴리기</button>`; }
-    else { q = `<p class="big" style="font-size:22px;line-height:1.5">${esc(TYPING[g.qs[g.round]])}</p>`; }
-    const body = type === "typing"
-      ? `${q}<div class="row"><input id="x99TypeInput" maxlength="40" placeholder="위 문장을 똑같이 입력해!" ${off}><button class="primary" onclick="x99Do('type')" ${off}>제출</button></div>`
-      : `${q}<div class="choice-row">${opts}</div>`;
-    return `${head}<div class="timer-readout" id="x99TurnTimer"></div>${body}<p class="notice">${me ? (myPick ? "선택 완료! 다른 사람을 기다리는 중이야." : "지금 선택해!") : "👀 관전 중이야."} (${done}/${ps.length}명 완료)</p>${bonusNote}${pills(room, g)}${endBtn(room)}`;
+    const state = `<p class="notice">${me ? (myPick ? "선택 완료! 다른 사람을 기다리는 중이야." : "지금 선택해!") : "👀 관전 중이야."} (${done}/${ps.length}명 완료)</p>`;
+    let body = "";
+    if (type === "ox") body = `<p class="big" style="font-size:26px;line-height:1.4">${esc(OX_BANK[g.qs[g.round]].q)}</p><div class="choice-row">${btn("O", "⭕") + btn("X", "❌")}</div>`;
+    else if (type === "rps") body = `<p class="notice">가위·바위·보 중 하나를 골라!</p><div class="choice-row">${["scissors", "rock", "paper"].map(v => btn(v, RPS[v][0])).join("")}</div>`;
+    else if (type === "coin") body = `<p class="notice">동전을 던질 거야. 앞면일까 뒷면일까?</p><div class="choice-row">${btn("H", "🪙 앞면", "font-size:20px") + btn("T", "🌑 뒷면", "font-size:20px")}</div>`;
+    else if (type === "quiz") body = `<p class="big" style="font-size:24px;line-height:1.4">${esc(it.q)}</p><div class="choice-row">${it.choices.map((t, i) => btn(String(i), `${["①", "②", "③", "④"][i]} ${esc(t)}`, "font-size:16px;min-width:140px")).join("")}</div>`;
+    else if (type === "dice") body = `<p class="notice">주사위 2개를 굴려 합이 가장 큰 사람이 1점!</p><div class="choice-row"><button ${off} onclick="x99Do('pick','roll')" style="font-size:22px">🎲 굴리기</button></div>`;
+    else if (type === "guess") body = `<p class="notice">0~100 중 숫자를 골라! 모두의 평균의 2/3에 가장 가까운 사람이 승리!</p><div class="row"><input id="x99NumInput" type="number" min="0" max="100" inputmode="numeric" placeholder="0~100" ${off}><button class="primary" onclick="x99Do('num')" ${off}>제출</button></div>`;
+    else if (type === "race") {
+      const hint = { seq: "1부터 9까지 순서대로 가장 빨리 눌러!", tap: "8초 동안 가장 많이 눌러!", react: "초록색이 되면 가장 빨리 눌러!", time: "정확히 10초가 되었다고 생각할 때 멈춰!" }[g.mode];
+      body = `<p class="notice">${hint}</p><p class="wordchain-turn">${!me ? "👀 관전 중이야." : myPick ? `기록 제출 완료: ${label(myPick)}` : "⬇️ 아래 게임 화면에서 도전해!"}</p>`;
+    } else {
+      let q;
+      if (type === "typing") q = `<p class="big" style="font-size:22px;line-height:1.5">${esc(TYPING[g.qs[g.round]])}</p>`;
+      else if (type === "cipher") q = `<p class="big" style="font-size:34px;letter-spacing:6px">${esc(g.qs[g.round].d)}</p><p class="notice">알파벳을 ${g.qs[g.round].k}칸씩 뒤로 밀어서 만든 암호야. 원래 영어 단어를 입력해!</p>`;
+      else q = `<p class="big" style="font-size:40px">${esc(g.qs[g.round].q)} = ?</p>`;
+      body = `${q}<div class="row"><input id="x99TypeInput" maxlength="40" placeholder="${type === "calc" ? "정답 숫자" : type === "cipher" ? "영어 단어" : "위 문장을 똑같이 입력해!"}" ${type === "calc" ? 'inputmode="numeric"' : ""} ${off}><button class="primary" onclick="x99Do('type')" ${off}>제출</button></div>`;
+    }
+    return `${head}<div class="timer-readout" id="x99TurnTimer"></div>${body}${type === "race" ? "" : state}${type === "race" ? `<p class="notice">(${done}/${ps.length}명 완료)</p>` : ""}${bonusNote}${pills(room, g)}${endBtn(room)}`;
   }
   const r = g.lastResult || { picks: {}, winners: [] };
   let top = "";
@@ -1251,12 +1584,16 @@ function renderRound(room, type) {
   else if (type === "rps") top = `<p class="wordchain-turn">${r.draw ? "비겼어! 🤝" : "승부가 났어!"}</p>`;
   else if (type === "coin") top = `<p class="big" style="font-size:34px">${r.result === "H" ? "🪙 앞면!" : "🌑 뒷면!"}</p>`;
   else if (type === "dice") top = '<p class="notice">가장 높은 합이 승리!</p>';
-  const lines = ps.map(p => `<p>${esc(p.name)} · ${r.picks[p.uid] ? label(r.picks[p.uid]) : "😴 선택 안 함"} ${r.winners.includes(p.uid) ? "🏆 +1" : ""}${r.bonus === p.uid ? " ⚡ +1" : ""}</p>`).join("");
+  else if (type === "guess") top = r.avg == null ? '<p class="notice">아무도 제출하지 않았어.</p>' : `<p class="notice">평균 ${r.avg} → 목표(평균의 2/3) <b style="font-size:22px">${r.target}</b></p>`;
+  else if (type === "race") top = `<p class="notice">${g.mode === "tap" ? "가장 많이 누른 사람이 승리!" : g.mode === "time" ? "10초에 가장 가까운 사람이 승리!" : "가장 빠른 사람이 승리!"}</p>`;
+  else top = `<p>정답: <b style="font-size:22px">${esc(typedTarget(g))}</b></p>`;
+  const lines = ps.map(p => `<p>${esc(p.name)} · ${r.picks[p.uid] !== undefined ? label(r.picks[p.uid]) : "😴 기록 없음"} ${r.winners.includes(p.uid) ? "🏆 +1" : ""}${r.bonus === p.uid ? " ⚡ +1" : ""}</p>`).join("");
   return `${head}${top}${lines}<div class="timer-readout" id="x99TurnTimer"></div><p class="notice">잠시 후 다음으로 넘어가!</p>${pills(room, g)}${endBtn(room)}`;
 }
 
 const roundGame = type => ({ render: r => renderRound(r, type), make: r => makeRound(r, type) });
-const quizGame = (cat, speed = false) => ({ render: r => renderRound(r, "quiz"), make: r => makeRound(r, "quiz", { cat, speed }) });
+const raceGame = mode => ({ render: r => renderRound(r, "race"), make: r => makeRound(r, "race", { mode }) });
+const quizGame = (cat, speed = false, total = 8) => ({ render: r => renderRound(r, "quiz"), make: r => makeRound(r, "quiz", { cat, speed, total }) });
 const GAMES = {
   0: { render: r => renderWordchain(r, false), make: (r, o) => makeWordchain(r, o.mode) },
   1: { render: renderBaseball, make: r => makeBaseball(r) },
@@ -1266,14 +1603,96 @@ const GAMES = {
   6: roundGame("typing"),
   7: roundGame("rps"),
   9: quizGame("general"),
+  14: raceGame("seq"),
+  16: raceGame("tap"),
   18: roundGame("dice"),
   20: quizGame("proverb"),
   22: quizGame("animal"),
+  23: quizGame("food"),
+  26: quizGame("sport"),
+  27: roundGame("calc"),
+  29: raceGame("react"),
+  32: roundGame("guess"),
   33: roundGame("coin"),
+  38: raceGame("time"),
   39: quizGame("science"),
   43: quizGame("capital"),
-  47: quizGame("space")
+  44: quizGame("dino"),
+  46: roundGame("cipher"),
+  47: quizGame("space"),
+  48: quizGame("mix", false, 12)
 };
+
+/* ---------- 직접 플레이하는 레이스 게임(내 화면에서 실행, 기록만 제출) ----------
+   방 화면(mgBody)은 다른 사람의 변화로 다시 그려지기 때문에, 이 게임 화면은 별도 영역(mgLocal)에 만들어 둬. */
+function stopLocal() {
+  if (S.localCleanup) { try { S.localCleanup(); } catch {} S.localCleanup = null; }
+  S.localKey = "";
+  const el = $("mgLocal");
+  if (el) { el.style.display = "none"; el.innerHTML = ""; }
+}
+window.x99StopLocal = stopLocal;
+const RACE_UI = {
+  seq(el, g, submit) {
+    const perm = String(g.qs[g.round]).split("");
+    el.innerHTML = `<p class="notice">1부터 9까지 순서대로 눌러!</p><div class="timer-readout" id="rsInfo">다음: 1</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:280px;margin:10px auto 0">${perm.map(n => `<button data-n="${n}" style="height:70px;font-size:26px">${n}</button>`).join("")}</div>`;
+    let next = 1; const t0 = performance.now();
+    el.querySelectorAll("[data-n]").forEach(b => b.onclick = () => {
+      if (Number(b.dataset.n) !== next) return;
+      b.disabled = true; b.style.background = "#dfe8f5"; next++;
+      el.querySelector("#rsInfo").textContent = next > 9 ? "완료!" : `다음: ${next}`;
+      if (next > 9) submit(Math.round(performance.now() - t0));
+    });
+    return () => {};
+  },
+  tap(el, g, submit) {
+    el.innerHTML = `<p class="notice">버튼을 처음 누르면 8초가 시작돼! 최대한 빨리 연타!</p><div class="timer-readout" id="rsInfo">0회 · 8.0초</div><button class="primary" id="rsBtn" style="width:100%;height:120px;font-size:24px">연타!</button>`;
+    const info = el.querySelector("#rsInfo"), btn = el.querySelector("#rsBtn"); let n = 0, start = null, timer = null;
+    btn.onclick = () => {
+      if (start === null) {
+        start = performance.now();
+        timer = setInterval(() => {
+          const left = Math.max(0, 8000 - (performance.now() - start));
+          info.textContent = `${n}회 · ${(left / 1000).toFixed(1)}초`;
+          if (left <= 0) { clearInterval(timer); btn.disabled = true; submit(n); }
+        }, 100);
+      }
+      n++; info.textContent = `${n}회 · ${(Math.max(0, 8000 - (performance.now() - start)) / 1000).toFixed(1)}초`;
+    };
+    return () => clearInterval(timer);
+  },
+  react(el, g, submit) {
+    const delay = Number(g.qs[g.round]);
+    el.innerHTML = `<p class="notice">화면이 초록색이 되면 최대한 빨리 눌러! 일찍 누르면 +1초 벌점!</p><button id="rsPad" style="width:100%;height:170px;font-size:24px;background:#e6a64a">기다려...</button>`;
+    const pad = el.querySelector("#rsPad"); let t = 0, go = false, pen = 0, timer = null;
+    const arm = () => { go = false; pad.style.background = "#e6a64a"; pad.textContent = "기다려..."; timer = setTimeout(() => { go = true; t = performance.now(); pad.style.background = "#22a66a"; pad.textContent = "지금!!"; }, delay); };
+    pad.onclick = () => {
+      if (!go) { clearTimeout(timer); pen += 1000; pad.textContent = "너무 빨라! +1초 벌점"; timer = setTimeout(arm, 800); return; }
+      pad.disabled = true; submit(Math.round(performance.now() - t) + pen);
+    };
+    arm();
+    return () => clearTimeout(timer);
+  },
+  time(el, g, submit) {
+    el.innerHTML = `<p class="notice">시작을 누르고, 정확히 10초가 지났다고 생각할 때 멈춰! (시간은 숨겨져 있어)</p><div class="big">⏳ ? ? ?</div><button class="primary" id="rsBtn" style="font-size:18px;padding:14px 26px">시작</button>`;
+    const btn = el.querySelector("#rsBtn"); let t0 = null;
+    btn.onclick = () => {
+      if (t0 === null) { t0 = performance.now(); btn.textContent = "멈춰!"; return; }
+      btn.disabled = true; submit(Math.abs(Math.round(performance.now() - t0 - 10000)));
+    };
+    return () => {};
+  }
+};
+function syncLocal(room) {
+  const g = room.game, el = $("mgLocal");
+  const want = el && g && g.status === "playing" && g.type === "race" && g.phase === "answer" && players(room).some(p => p.uid === S.uid) && !g.answers?.[S.uid] ? gameKey(g) : "";
+  if (want === (S.localKey || "")) return;
+  stopLocal();
+  if (!want) return;
+  S.localKey = want; el.style.display = "";
+  S.localCleanup = RACE_UI[g.mode](el, g, v => { if (S.localKey !== want) return; stopLocal(); window.x99Do("pick", String(v)); });
+}
+
 
 window.x99Render = function () {
   const room = S.room, body = $("mgBody");
@@ -1281,6 +1700,7 @@ window.x99Render = function () {
   const def = GAMES[room.selectedGame];
   if (!def) return;
   setHtmlKeep(body, def.render(room));
+  syncLocal(room);
   tick();
 };
 
@@ -1374,8 +1794,13 @@ const ACTIONS = {
   },
   async type() {
     const input = $("x99TypeInput"), text = (input?.value || "").trim().replace(/\s+/g, " ");
-    if (!text) throw new Error("문장을 입력해 줘.");
+    if (!text) throw new Error("답을 입력해 줘.");
     await ACTIONS.pick(text);
+  },
+  async num() {
+    const input = $("x99NumInput"), v = (input?.value || "").trim();
+    if (!/^\d{1,3}$/.test(v) || Number(v) > 100) throw new Error("0~100 사이 숫자를 입력해 줘.");
+    await ACTIONS.pick(String(Number(v)));
   },
   async pick(choice) {
     S.nextOpts = { apply: !["dice", "coin"].includes(S.room?.game?.type) }; // 주사위·동전은 서버가 결과를 정해
@@ -1394,8 +1819,13 @@ const ACTIONS = {
       else if (g.type === "dice") {
         if (choice !== "roll") throw new Error("잘못된 선택이야.");
         value = `${1 + Math.floor(Math.random() * 6)},${1 + Math.floor(Math.random() * 6)}`;
-      } else if (g.type === "typing") {
-        if (choice !== TYPING[g.qs[g.round]]) throw new Error("문장이 달라! 다시 확인해 줘.");
+      } else if (g.type === "race") {
+        if (!/^\d{1,7}$/.test(choice)) throw new Error("잘못된 기록이야.");
+      } else if (g.type === "guess") {
+        if (!/^\d{1,3}$/.test(choice) || Number(choice) > 100) throw new Error("0~100 사이 숫자를 입력해 줘.");
+      } else if (TYPED.has(g.type)) {
+        value = g.type === "cipher" ? String(choice).toUpperCase() : choice;
+        if (value !== typedTarget(g)) throw new Error(g.type === "calc" ? "계산 결과가 달라! 다시 확인해 줘." : "답이 달라! 다시 확인해 줘.");
       }
       let ng = { ...g, answers: { ...(g.answers || {}), [uid]: value }, answerAt: { ...(g.answerAt || {}), [uid]: now() } };
       if (ps.every(p => ng.answers[p.uid])) ng = revealRound(ng, room);
@@ -1442,6 +1872,7 @@ document.addEventListener("keydown", e => {
   if (id === "x99WordInput") window.x99Do("word");
   else if (id === "x99GuessInput") window.x99Do("guess");
   else if (id === "x99TypeInput") window.x99Do("type");
+  else if (id === "x99NumInput") window.x99Do("num");
   else if (id === "x99ChatInput") window.sendX99Chat();
 });
 
