@@ -1238,7 +1238,7 @@ window.renderFeatured=()=>{document.getElementById('featured').innerHTML=[[soloN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, runTransaction, onSnapshot, serverTimestamp,
+  getFirestore, initializeFirestore, doc, getDoc, setDoc, runTransaction, onSnapshot, serverTimestamp,
   collection, query, where, orderBy, limit, getDocs, deleteDoc, addDoc, Timestamp
 } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore.js";
 
@@ -1254,7 +1254,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// 일부 네트워크(회사·학교·일부 통신사)에서 실시간 연결이 버퍼링돼 늦게 도착하는 문제를 자동 감지해서 피해 가
+const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
 const S = window.X99;
 const $ = id => document.getElementById(id);
 const now = () => Date.now();
@@ -1581,7 +1582,7 @@ window.leaveRoom = async function () {
 window.sendX99Chat = async function () {
   const input = $("x99ChatInput"), text = (input?.value || "").trim().slice(0, 120);
   if (!text || !S.code || !S.room) return;
-  if (now() - (S.lastChat || 0) < 700) return;
+  if (now() - (S.lastChat || 0) < 400) return;
   S.lastChat = now();
   const me = [...(S.room.players || []), ...(S.room.spectators || [])].find(p => p.uid === S.uid);
   if (!me) return;
